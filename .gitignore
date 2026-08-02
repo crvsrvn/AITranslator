@@ -1,0 +1,13 @@
+# 构建与发布产物
+/dist/
+/src/bin/
+/src/obj/
+
+# IDE 本机状态
+**/.idea/
+/.vs/
+*.user
+
+# Windows 系统文件
+Thumbs.db
+Desktop.ini
