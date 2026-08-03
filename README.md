@@ -1,2 +1,7 @@
-# AITranslator
+[中文](./README.md) | [English](./README.en.md)
 
+### AITranslator
+
+- 使用AI在用户指定的行业/语境进行查词(含发音)、文本翻译、文件翻译、划词翻译、截屏翻译
+    - 成本较商业产品更低，指定行业/语境的翻译质量更高，且无任何广告（某商业产品订阅后广告更多了）
+- 支持Windows 10 1809+、Windows11
