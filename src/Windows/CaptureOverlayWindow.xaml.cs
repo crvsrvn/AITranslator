@@ -79,6 +79,12 @@ public sealed partial class CaptureOverlayWindow : Window
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(windowHandle);
         var appWindow = AppWindow.GetFromWindowId(windowId);
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AITranslator.ico");
+        if (File.Exists(iconPath))
+        {
+            appWindow.SetIcon(iconPath);
+        }
+
         appWindow.IsShownInSwitchers = false;
         if (appWindow.Presenter is OverlappedPresenter presenter)
         {

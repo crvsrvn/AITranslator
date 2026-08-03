@@ -5,12 +5,13 @@
 
     <ContentControl
         x:Name="Root"
-        Background="{ThemeResource AppSurfaceBrush}"
+        Background="{ThemeResource AppBackgroundBrush}"
         BorderBrush="{ThemeResource AppBorderBrush}"
         BorderThickness="1"
+        Foreground="{ThemeResource AppTextBrush}"
         HorizontalContentAlignment="Stretch"
         VerticalContentAlignment="Stretch">
-        <Grid RowSpacing="0">
+        <Grid Background="{ThemeResource AppBackgroundBrush}" RowSpacing="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="56" />
                 <RowDefinition Height="*" />
@@ -20,7 +21,7 @@
             <Grid
                 x:Name="TitleBar"
                 Padding="16,0,8,0"
-                Background="{ThemeResource AppSurfaceBrush}">
+                Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -53,7 +54,10 @@
                 </Button>
             </Grid>
 
-            <Grid x:Name="ResultGrid" Grid.Row="1">
+            <Grid
+                x:Name="ResultGrid"
+                Grid.Row="1"
+                Background="{ThemeResource AppSurfaceBrush}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition x:Name="DictionaryColumn" Width="*" />
                     <ColumnDefinition Width="1" />
@@ -150,7 +154,7 @@
             <Grid
                 Grid.Row="2"
                 Padding="8,4"
-                Background="{ThemeResource AppSurfaceBrush}">
+                Background="Transparent">
                 <ProgressRing
                     x:Name="BusyRing"
                     Width="22"

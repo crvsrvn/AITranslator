@@ -7,8 +7,9 @@
         x:Name="Root"
         HorizontalContentAlignment="Stretch"
         VerticalContentAlignment="Stretch"
-        Background="{ThemeResource AppBackgroundBrush}">
-        <Grid>
+        Background="{ThemeResource AppBackgroundBrush}"
+        Foreground="{ThemeResource AppTextBrush}">
+        <Grid Background="{ThemeResource AppBackgroundBrush}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48" />
                 <RowDefinition Height="*" />
@@ -18,7 +19,7 @@
             <Grid
                 x:Name="AppTitleBar"
                 Padding="16,0"
-                Background="{ThemeResource AppBackgroundBrush}">
+                Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -46,7 +47,7 @@
                 IsSettingsVisible="True"
                 IsTitleBarAutoPaddingEnabled="False"
                 HorizontalContentAlignment="Stretch"
-                Background="{ThemeResource AppBackgroundBrush}"
+                Background="Transparent"
                 IsPaneOpen="False"
                 OpenPaneLength="176"
                 PaneDisplayMode="Left"
@@ -73,7 +74,7 @@
                     </NavigationViewItem>
                 </NavigationView.MenuItems>
 
-                <Grid Background="{ThemeResource AppBackgroundBrush}">
+                <Grid Background="Transparent">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />

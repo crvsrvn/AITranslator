@@ -10,30 +10,106 @@
 
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <Color x:Key="SystemAccentColor">#FF26636E</Color>
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#FFF4FAFB" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="AppSubtleBrush" Color="#FFE8F4F5" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#FFC4D9DC" />
-                    <SolidColorBrush x:Key="AppTextBrush" Color="#FF07171C" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#FF46666D" />
-                    <SolidColorBrush x:Key="AppAccentBrush" Color="#FF26636E" />
-                    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF1E515B" />
-                    <SolidColorBrush x:Key="AppAccentTextBrush" Color="#FF087D91" />
+                    <Color x:Key="SystemAccentColor">#FF9A6800</Color>
+                    <LinearGradientBrush x:Key="AppBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFFFF8DC" Offset="0" />
+                        <GradientStop Color="#FFF6E78C" Offset="0.56" />
+                        <GradientStop Color="#FFE0AD32" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFFFFEF7" Offset="0" />
+                        <GradientStop Color="#FFFFF2BF" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppSubtleBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFF9ECA8" Offset="0" />
+                        <GradientStop Color="#FFECCA4E" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#FFD2B340" />
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#FF302500" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#FF6F5B16" />
+                    <LinearGradientBrush x:Key="AppAccentBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFF6E78C" Offset="0" />
+                        <GradientStop Color="#FFE0AD32" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppAccentHoverBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFFFEEA3" Offset="0" />
+                        <GradientStop Color="#FFD79D1C" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppAccentPressedBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFECCA4E" Offset="0" />
+                        <GradientStop Color="#FFC98D12" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="AppAccentForegroundBrush" Color="#FF302500" />
+                    <SolidColorBrush x:Key="AppAccentTextBrush" Color="#FF795100" />
                     <SolidColorBrush x:Key="AppDangerBrush" Color="#FFB5473B" />
+                    <StaticResource x:Key="AccentButtonBackground" ResourceKey="AppAccentBrush" />
+                    <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="AppAccentHoverBrush" />
+                    <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="AppAccentPressedBrush" />
+                    <StaticResource x:Key="AccentButtonForeground" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonForegroundPointerOver" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonForegroundPressed" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonBorderBrush" ResourceKey="AppBorderBrush" />
+                    <StaticResource x:Key="AccentButtonBorderBrushPointerOver" ResourceKey="AppBorderBrush" />
+                    <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                    <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundPointerOver" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundPressed" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPointerOver" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPressed" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewContentGridBorderBrush" ResourceKey="AppBorderBrush" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <Color x:Key="SystemAccentColor">#FF26636E</Color>
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#FF020A12" />
-                    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FF061722" />
-                    <SolidColorBrush x:Key="AppSubtleBrush" Color="#FF0A202C" />
-                    <SolidColorBrush x:Key="AppBorderBrush" Color="#FF164554" />
-                    <SolidColorBrush x:Key="AppTextBrush" Color="#FFE6F5F6" />
-                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#FF8FB3B8" />
-                    <SolidColorBrush x:Key="AppAccentBrush" Color="#FF26636E" />
-                    <SolidColorBrush x:Key="AppAccentHoverBrush" Color="#FF317985" />
-                    <SolidColorBrush x:Key="AppAccentTextBrush" Color="#FF39C3D0" />
+                    <Color x:Key="SystemAccentColor">#FFE0AD32</Color>
+                    <LinearGradientBrush x:Key="AppBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF1C180D" Offset="0" />
+                        <GradientStop Color="#FF2E250F" Offset="0.56" />
+                        <GradientStop Color="#FF4D370A" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF292314" Offset="0" />
+                        <GradientStop Color="#FF3A2E12" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppSubtleBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF3E3216" Offset="0" />
+                        <GradientStop Color="#FF5A4310" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="AppBorderBrush" Color="#FF80651C" />
+                    <SolidColorBrush x:Key="AppTextBrush" Color="#FFFFF4CE" />
+                    <SolidColorBrush x:Key="AppMutedTextBrush" Color="#FFD5BD72" />
+                    <LinearGradientBrush x:Key="AppAccentBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFF6E78C" Offset="0" />
+                        <GradientStop Color="#FFE0AD32" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppAccentHoverBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFFFEEA3" Offset="0" />
+                        <GradientStop Color="#FFE9BB47" Offset="1" />
+                    </LinearGradientBrush>
+                    <LinearGradientBrush x:Key="AppAccentPressedBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFECCA4E" Offset="0" />
+                        <GradientStop Color="#FFD39A1B" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="AppAccentForegroundBrush" Color="#FF302500" />
+                    <SolidColorBrush x:Key="AppAccentTextBrush" Color="#FFFFD866" />
                     <SolidColorBrush x:Key="AppDangerBrush" Color="#FFFF8A80" />
+                    <StaticResource x:Key="AccentButtonBackground" ResourceKey="AppAccentBrush" />
+                    <StaticResource x:Key="AccentButtonBackgroundPointerOver" ResourceKey="AppAccentHoverBrush" />
+                    <StaticResource x:Key="AccentButtonBackgroundPressed" ResourceKey="AppAccentPressedBrush" />
+                    <StaticResource x:Key="AccentButtonForeground" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonForegroundPointerOver" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonForegroundPressed" ResourceKey="AppAccentForegroundBrush" />
+                    <StaticResource x:Key="AccentButtonBorderBrush" ResourceKey="AppBorderBrush" />
+                    <StaticResource x:Key="AccentButtonBorderBrushPointerOver" ResourceKey="AppBorderBrush" />
+                    <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                    <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundPointerOver" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundPressed" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="AppSurfaceBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPointerOver" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewItemBackgroundSelectedPressed" ResourceKey="AppSubtleBrush" />
+                    <StaticResource x:Key="NavigationViewContentGridBorderBrush" ResourceKey="AppBorderBrush" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="AppBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -44,6 +120,8 @@
                     <SolidColorBrush x:Key="AppMutedTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
                     <SolidColorBrush x:Key="AppAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="AppAccentHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="AppAccentPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="AppAccentForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
                     <SolidColorBrush x:Key="AppAccentTextBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="AppDangerBrush" Color="{ThemeResource SystemColorHotlightColor}" />
                 </ResourceDictionary>
@@ -59,9 +137,9 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{ThemeResource AppTextBrush}" />
             </Style>
-            <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                 <Setter Property="Background" Value="{ThemeResource AppAccentBrush}" />
-                <Setter Property="Foreground" Value="White" />
+                <Setter Property="Foreground" Value="{ThemeResource AppAccentForegroundBrush}" />
                 <Setter Property="CornerRadius" Value="4" />
                 <Setter Property="Padding" Value="16,9" />
             </Style>
