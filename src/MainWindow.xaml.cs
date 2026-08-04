@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using AITranslator.Helpers;
 using AITranslator.Interop;
@@ -19,6 +20,7 @@ namespace AITranslator;
 
 public sealed partial class MainWindow : Window
 {
+    private const nuint MainWindowSubclassId = 2;
     private const int DefaultWindowWidth = 1180;
     private const int DefaultWindowHeight = 780;
     private const int MinimumRestoredVisibleWidth = 160;
@@ -29,9 +31,13 @@ public sealed partial class MainWindow : Window
     private readonly nint _windowHandle;
     private readonly HotkeyService _hotkeyService;
     private readonly TrayIconService _trayIconService;
+    private readonly NativeMethods.SubclassProcedure _subclassProcedure;
     private QuickLookupWindow? _quickLookupWindow;
     private CaptureOverlayWindow? _captureWindow;
     private bool _isWindowVisible = true;
+    private bool _wasMinimized;
+    private bool _focusInputOnActivation;
+    private bool _subclassInstalled;
     private bool _isLoadingSettings;
     private bool _isClosing;
     private TextBox? _pressedControlShortcutBox;
@@ -62,6 +68,13 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _subclassProcedure = MainWindowProcedure;
+        if (!NativeMethods.SetWindowSubclass(_windowHandle, _subclassProcedure, MainWindowSubclassId, 0))
+        {
+            throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(), "无法监听主窗口状态。");
+        }
+
+        _subclassInstalled = true;
         ConfigureWindow();
         ApplyAppearance(services.Settings.Current);
         Root.Loaded += (_, _) => ApplyAppearance(_services.Settings.Current);
@@ -72,6 +85,7 @@ public sealed partial class MainWindow : Window
         ReportHotkeyErrors(_hotkeyService.RegisterAll(services.Settings.Current));
         _trayIconService = new TrayIconService(_windowHandle,
             Path.Combine(AppContext.BaseDirectory, "Assets", "AITranslator.ico"), services.Localization, ShowAndFocus, RequestExitApplication);
+        Activated += MainWindow_Activated;
         Closed += MainWindow_Closed;
 
         Navigation.SelectedItem = Navigation.MenuItems[0];
@@ -92,19 +106,40 @@ public sealed partial class MainWindow : Window
         ShowAndFocus();
     }
 
-    private void ShowAndFocus()
+    public void ShowAndFocus()
     {
         if (_isClosing)
         {
             return;
         }
 
+        _focusInputOnActivation = true;
         var command = NativeMethods.IsIconic(_windowHandle) ? NativeMethods.SwRestore : NativeMethods.SwShow;
         NativeMethods.ShowWindow(_windowHandle, command);
         NativeMethods.SetForegroundWindow(_windowHandle);
         Activate();
         _isWindowVisible = true;
-        FocusPrimaryInput();
+        QueuePrimaryInputFocus();
+    }
+
+    private void QueuePrimaryInputFocus()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_focusInputOnActivation && !_isClosing && NativeMethods.GetForegroundWindow() == _windowHandle)
+            {
+                _focusInputOnActivation = false;
+                FocusPrimaryInput();
+            }
+        });
+    }
+
+    private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
+    {
+        if (_focusInputOnActivation && args.WindowActivationState != WindowActivationState.Deactivated)
+        {
+            QueuePrimaryInputFocus();
+        }
     }
 
     private void HideMainWindow()
@@ -248,6 +283,33 @@ public sealed partial class MainWindow : Window
         UpdateLastRestoredWindowPosition();
     }
 
+    private nint MainWindowProcedure(nint windowHandle, uint message, nuint wParam, nint lParam, nuint subclassId,
+        nuint referenceData)
+    {
+        try
+        {
+            if (message == NativeMethods.WmSize)
+            {
+                if (wParam == NativeMethods.SizeMinimized)
+                {
+                    _wasMinimized = true;
+                }
+                else if (_wasMinimized && wParam is NativeMethods.SizeRestored or NativeMethods.SizeMaximized)
+                {
+                    _wasMinimized = false;
+                    _focusInputOnActivation = true;
+                    QueuePrimaryInputFocus();
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.WriteLine(exception);
+        }
+
+        return NativeMethods.DefSubclassProc(windowHandle, message, wParam, lParam);
+    }
+
     private void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_isClosing)
@@ -274,14 +336,13 @@ public sealed partial class MainWindow : Window
 
     private void FocusPrimaryInput()
     {
-        if (LookupPage.Visibility == Visibility.Visible)
+        if (LookupPage.Visibility != Visibility.Visible)
         {
-            LookupInput.Focus(FocusState.Programmatic);
-            return;
+            Navigation.SelectedItem = Navigation.MenuItems[0];
         }
 
-        Navigation.SelectedItem = Navigation.MenuItems[0];
         LookupInput.Focus(FocusState.Programmatic);
+        LookupInput.SelectAll();
     }
 
     private void Navigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
@@ -401,10 +462,7 @@ public sealed partial class MainWindow : Window
             _captureWindow = null;
             if (restoreMainWindow)
             {
-                NativeMethods.ShowWindow(_windowHandle, NativeMethods.SwShow);
-                NativeMethods.SetForegroundWindow(_windowHandle);
-                Activate();
-                _isWindowVisible = true;
+                ShowAndFocus();
             }
         }
     }
@@ -1214,6 +1272,7 @@ public sealed partial class MainWindow : Window
         _isClosing = true;
         _industryContextSaveTimer.Stop();
         _industryContextSaveTimer.Tick -= IndustryContextSaveTimer_Tick;
+        Activated -= MainWindow_Activated;
         _services.Localization.LanguageChanged -= Localization_LanguageChanged;
         _captureWindow?.Close();
         try
@@ -1233,6 +1292,12 @@ public sealed partial class MainWindow : Window
             {
                 UpdateLastRestoredWindowPosition();
             }
+        }
+
+        if (_subclassInstalled)
+        {
+            NativeMethods.RemoveWindowSubclass(_windowHandle, _subclassProcedure, MainWindowSubclassId);
+            _subclassInstalled = false;
         }
 
         if (_lastRestoredWindowPosition is PointInt32 position)

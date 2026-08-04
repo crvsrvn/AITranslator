@@ -37,7 +37,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             if (!string.IsNullOrWhiteSpace(automationLookupText))
             {
                 MainWindow = new MainWindow(Services);
-                MainWindow.Activate();
+                MainWindow.ShowAndFocus();
                 var quickLookupWindow = new QuickLookupWindow(Services);
                 _automationWindow = quickLookupWindow;
                 quickLookupWindow.DelayCloseOnDeactivate(TimeSpan.FromSeconds(3));
@@ -47,7 +47,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             }
 
             MainWindow = new MainWindow(Services);
-            MainWindow.Activate();
+            MainWindow.ShowAndFocus();
             if (string.Equals(Environment.GetEnvironmentVariable("AITRANSLATOR_AUTOMATION_CAPTURE"), "1",
                     StringComparison.Ordinal))
             {

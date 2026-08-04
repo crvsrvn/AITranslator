@@ -5,6 +5,7 @@ namespace AITranslator.Interop;
 internal static class NativeMethods
 {
     internal const uint WmNull = 0x0000;
+    internal const uint WmSize = 0x0005;
     internal const int GwlWndProc = -4;
     internal const int WhKeyboardLl = 13;
     internal const int HcAction = 0;
@@ -23,6 +24,9 @@ internal static class NativeMethods
     internal const uint WmContextMenu = 0x007B;
     internal const uint WmApplyHotkeys = 0x8001;
     internal const uint WmTrayIcon = 0x8002;
+    internal const nuint SizeRestored = 0;
+    internal const nuint SizeMinimized = 1;
+    internal const nuint SizeMaximized = 2;
     internal const uint PmNoRemove = 0x0000;
     internal const uint ModAlt = 0x0001;
     internal const uint ModControl = 0x0002;
