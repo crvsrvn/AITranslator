@@ -9,6 +9,7 @@ namespace AITranslator;
 
 public partial class App : Microsoft.UI.Xaml.Application
 {
+    private const string ApplicationUserModelId = "AITranslator.Desktop";
     private static QuickLookupWindow? _automationWindow;
 
     public static AppServices Services { get; private set; } = null!;
@@ -17,6 +18,12 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     public App()
     {
+        var result = NativeMethods.SetCurrentProcessExplicitAppUserModelID(ApplicationUserModelId);
+        if (result < 0)
+        {
+            System.Diagnostics.Debug.WriteLine($"设置 AppUserModelID 失败：0x{result:X8}");
+        }
+
         InitializeComponent();
         UnhandledException += App_UnhandledException;
     }

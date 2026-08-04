@@ -26,6 +26,9 @@ $projectFile = Join-Path $sourceDirectory "AITranslator.csproj"
 $launcherSource = Join-Path $sourceDirectory "Launcher\Program.cs"
 $launcherIcon = Join-Path $sourceDirectory "Assets\AITranslator.ico"
 $launcherManifest = Join-Path $sourceDirectory "app.manifest"
+$launcherVisualElementsManifest = Join-Path $sourceDirectory "AITranslator.VisualElementsManifest.xml"
+$launcherTileAssetNames = @("AITranslator.Tile150x150.png", "AITranslator.Tile70x70.png")
+$applicationUserModelId = "AITranslator.Desktop"
 $compiler = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $platformDirectory = Join-Path $rootDirectory "dist\win-x64"
 $distDirectory = Join-Path $platformDirectory "AITranslator"
@@ -55,6 +58,8 @@ $shouldPublish = $false
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 
 public static class ShellChangeNotifier
 {
@@ -69,6 +74,191 @@ public static class ShellChangeNotifier
         SHChangeNotify(UpdateItem, PathUnicodeAndFlush, path, IntPtr.Zero);
     }
 }
+
+[ComImport]
+[Guid("00021401-0000-0000-C000-000000000046")]
+internal class ShellLink
+{
+}
+
+[ComImport]
+[Guid("000214F9-0000-0000-C000-000000000046")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IShellLinkW
+{
+    [PreserveSig]
+    int GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder filePath, int pathLength,
+        IntPtr findData, uint flags);
+
+    [PreserveSig]
+    int GetIDList(out IntPtr itemIdList);
+
+    [PreserveSig]
+    int SetIDList(IntPtr itemIdList);
+
+    [PreserveSig]
+    int GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder description, int descriptionLength);
+
+    [PreserveSig]
+    int SetDescription([MarshalAs(UnmanagedType.LPWStr)] string description);
+
+    [PreserveSig]
+    int GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder directory, int directoryLength);
+
+    [PreserveSig]
+    int SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string directory);
+
+    [PreserveSig]
+    int GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder arguments, int argumentsLength);
+
+    [PreserveSig]
+    int SetArguments([MarshalAs(UnmanagedType.LPWStr)] string arguments);
+
+    [PreserveSig]
+    int GetHotkey(out short hotkey);
+
+    [PreserveSig]
+    int SetHotkey(short hotkey);
+
+    [PreserveSig]
+    int GetShowCmd(out int showCommand);
+
+    [PreserveSig]
+    int SetShowCmd(int showCommand);
+
+    [PreserveSig]
+    int GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder iconPath, int iconPathLength,
+        out int iconIndex);
+
+    [PreserveSig]
+    int SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string iconPath, int iconIndex);
+
+    [PreserveSig]
+    int SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string path, uint reserved);
+
+    [PreserveSig]
+    int Resolve(IntPtr windowHandle, uint flags);
+
+    [PreserveSig]
+    int SetPath([MarshalAs(UnmanagedType.LPWStr)] string filePath);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct PropertyKey
+{
+    internal Guid FormatId;
+    internal uint PropertyId;
+
+    internal PropertyKey(Guid formatId, uint propertyId)
+    {
+        FormatId = formatId;
+        PropertyId = propertyId;
+    }
+}
+
+[StructLayout(LayoutKind.Explicit)]
+internal struct PropVariant : IDisposable
+{
+    [FieldOffset(0)]
+    private ushort valueType;
+
+    [FieldOffset(8)]
+    private IntPtr pointerValue;
+
+    internal static PropVariant FromString(string value)
+    {
+        return new PropVariant
+        {
+            valueType = 31,
+            pointerValue = Marshal.StringToCoTaskMemUni(value)
+        };
+    }
+
+    public void Dispose()
+    {
+        PropVariantClear(ref this);
+    }
+
+    [DllImport("ole32.dll")]
+    private static extern int PropVariantClear(ref PropVariant value);
+}
+
+[ComImport]
+[Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPropertyStore
+{
+    [PreserveSig]
+    int GetCount(out uint propertyCount);
+
+    [PreserveSig]
+    int GetAt(uint propertyIndex, out PropertyKey key);
+
+    [PreserveSig]
+    int GetValue(ref PropertyKey key, out PropVariant value);
+
+    [PreserveSig]
+    int SetValue(ref PropertyKey key, ref PropVariant value);
+
+    [PreserveSig]
+    int Commit();
+}
+
+public static class StartMenuShortcut
+{
+    private static readonly PropertyKey ApplicationUserModelId = new PropertyKey(
+        new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+        5);
+
+    private static readonly PropertyKey VisualElementsManifestHintPath = new PropertyKey(
+        new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+        31);
+
+    public static void CreateOrUpdate(string shortcutPath, string targetPath, string applicationUserModelId,
+        string manifestPath)
+    {
+        object shellLinkObject = new ShellLink();
+        try
+        {
+            var shellLink = (IShellLinkW)shellLinkObject;
+            ThrowIfFailed(shellLink.SetPath(targetPath));
+            ThrowIfFailed(shellLink.SetWorkingDirectory(System.IO.Path.GetDirectoryName(targetPath)));
+            ThrowIfFailed(shellLink.SetIconLocation(targetPath, 0));
+
+            var propertyStore = (IPropertyStore)shellLinkObject;
+            SetStringProperty(propertyStore, ApplicationUserModelId, applicationUserModelId);
+            SetStringProperty(propertyStore, VisualElementsManifestHintPath, manifestPath);
+            ThrowIfFailed(propertyStore.Commit());
+
+            ((IPersistFile)shellLinkObject).Save(shortcutPath, true);
+        }
+        finally
+        {
+            Marshal.FinalReleaseComObject(shellLinkObject);
+        }
+    }
+
+    private static void SetStringProperty(IPropertyStore propertyStore, PropertyKey propertyKey, string text)
+    {
+        var value = PropVariant.FromString(text);
+        try
+        {
+            ThrowIfFailed(propertyStore.SetValue(ref propertyKey, ref value));
+        }
+        finally
+        {
+            value.Dispose();
+        }
+    }
+
+    private static void ThrowIfFailed(int result)
+    {
+        if (result < 0)
+        {
+            Marshal.ThrowExceptionForHR(result);
+        }
+    }
+}
 "@
 
 function Assert-FileExists([string] $path, [string] $description)
@@ -77,6 +267,62 @@ function Assert-FileExists([string] $path, [string] $description)
     {
         throw "Missing ${description}: $path"
     }
+}
+
+function Install-StartMenuShortcut([string] $applicationDirectory)
+{
+    $targetPath = Join-Path $applicationDirectory "AITranslator.exe"
+    $visualElementsManifestPath = Join-Path $applicationDirectory "AITranslator.VisualElementsManifest.xml"
+    Assert-FileExists $targetPath "published launcher"
+    Assert-FileExists $visualElementsManifestPath "published visual elements manifest"
+
+    $programsDirectory = [Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)
+    if ([string]::IsNullOrWhiteSpace($programsDirectory))
+    {
+        throw "Unable to resolve the current user's Start Menu Programs directory."
+    }
+
+    New-Item -ItemType Directory -Path $programsDirectory -Force | Out-Null
+    $shortcutPath = Join-Path $programsDirectory "AITranslator.lnk"
+    [StartMenuShortcut]::CreateOrUpdate($shortcutPath, $targetPath, $applicationUserModelId, $visualElementsManifestPath)
+    Assert-FileExists $shortcutPath "Start Menu shortcut"
+
+    $shortcutShell = New-Object -ComObject Shell.Application
+    $shortcutFolder = $null
+    $shortcutItem = $null
+    try
+    {
+        $shortcutFolder = $shortcutShell.Namespace($programsDirectory)
+        $shortcutItem = $shortcutFolder.ParseName("AITranslator.lnk")
+        $actualApplicationUserModelId = [string]$shortcutItem.ExtendedProperty("System.AppUserModel.ID")
+        $actualHintPath = [string]$shortcutItem.ExtendedProperty("System.AppUserModel.VisualElementsManifestHintPath")
+    }
+    finally
+    {
+        if ($null -ne $shortcutItem)
+        {
+            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcutItem) | Out-Null
+        }
+
+        if ($null -ne $shortcutFolder)
+        {
+            [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcutFolder) | Out-Null
+        }
+
+        [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcutShell) | Out-Null
+    }
+
+    if (-not [string]::Equals($actualApplicationUserModelId, $applicationUserModelId, [StringComparison]::Ordinal))
+    {
+        throw "Start Menu shortcut application user model ID differs: $actualApplicationUserModelId"
+    }
+
+    if (-not [string]::Equals($actualHintPath, $visualElementsManifestPath, [StringComparison]::OrdinalIgnoreCase))
+    {
+        throw "Start Menu shortcut visual elements manifest hint differs: $actualHintPath"
+    }
+
+    [ShellChangeNotifier]::NotifyItemUpdated($shortcutPath)
 }
 
 function Get-FileManifest([string] $directory)
@@ -249,6 +495,12 @@ try
     Assert-FileExists $launcherSource "launcher source"
     Assert-FileExists $launcherIcon "application icon"
     Assert-FileExists $launcherManifest "application manifest"
+    Assert-FileExists $launcherVisualElementsManifest "launcher visual elements manifest"
+    foreach ($name in $launcherTileAssetNames)
+    {
+        Assert-FileExists (Join-Path $sourceDirectory "Assets\$name") "launcher tile asset"
+    }
+
     Assert-FileExists $compiler "Windows C# compiler"
     Assert-FileExists (Join-Path $sourceDictionaryDirectory "ecdict.db") "source dictionary"
     Assert-FileExists (Join-Path $sourceDictionaryDirectory "ECDICT-LICENSE.txt") "dictionary license"
@@ -408,6 +660,14 @@ try
     New-Item -ItemType Directory -Path $dependenciesDirectory -Force | Out-Null
     Move-Item -LiteralPath $stagingApplicationDirectory -Destination $applicationDirectory
     Copy-Item -LiteralPath $stagingLauncher -Destination (Join-Path $distDirectory "AITranslator.exe") -Force
+    Copy-Item -LiteralPath $launcherVisualElementsManifest -Destination (Join-Path $distDirectory "AITranslator.VisualElementsManifest.xml") -Force
+    $launcherAssetsDirectory = Join-Path $distDirectory "Assets"
+    New-Item -ItemType Directory -Path $launcherAssetsDirectory -Force | Out-Null
+    foreach ($name in $launcherTileAssetNames)
+    {
+        Copy-Item -LiteralPath (Join-Path $sourceDirectory "Assets\$name") -Destination (Join-Path $launcherAssetsDirectory $name) -Force
+    }
+
     New-Item -ItemType Directory -Path $distDictionaryDirectory -Force | Out-Null
     New-Item -ItemType HardLink -Path (Join-Path $distDictionaryDirectory "ecdict.db") -Target (Join-Path $sourceDictionaryDirectory "ecdict.db") | Out-Null
     New-Item -ItemType HardLink -Path (Join-Path $distDictionaryDirectory "ECDICT-LICENSE.txt") -Target (Join-Path $sourceDictionaryDirectory "ECDICT-LICENSE.txt") | Out-Null
@@ -431,7 +691,15 @@ try
         throw "Unexpected platform root entries: $($actualPlatformEntries -join ', ')"
     }
 
-    $expectedRootEntries = @("Dependencies", "Dictionary", "Logs", "UserData", "AITranslator.exe") | Sort-Object
+    $expectedRootEntries = @(
+        "Assets",
+        "Dependencies",
+        "Dictionary",
+        "Logs",
+        "UserData",
+        "AITranslator.exe",
+        "AITranslator.VisualElementsManifest.xml"
+    ) | Sort-Object
     $actualRootEntries = @(Get-ChildItem -LiteralPath $distDirectory -Force | ForEach-Object Name | Sort-Object)
     if (@(Compare-Object $expectedRootEntries $actualRootEntries).Count -ne 0)
     {
@@ -469,9 +737,30 @@ try
         }
     }
 
-    foreach ($executablePath in @((Join-Path $distDirectory "AITranslator.exe"), (Join-Path $applicationDirectory "AITranslator.exe")))
+    $publishedVisualElementsManifest = Join-Path $distDirectory "AITranslator.VisualElementsManifest.xml"
+    if ((Get-Sha256 $launcherVisualElementsManifest) -ne (Get-Sha256 $publishedVisualElementsManifest))
     {
-        [ShellChangeNotifier]::NotifyItemUpdated($executablePath)
+        throw "Published visual elements manifest hash differs: $publishedVisualElementsManifest"
+    }
+
+    foreach ($name in $launcherTileAssetNames)
+    {
+        $sourcePath = Join-Path $sourceDirectory "Assets\$name"
+        $publishedPath = Join-Path $launcherAssetsDirectory $name
+        Assert-FileExists $publishedPath "published launcher tile asset"
+        if ((Get-Sha256 $sourcePath) -ne (Get-Sha256 $publishedPath))
+        {
+            throw "Published launcher tile asset hash differs: $publishedPath"
+        }
+    }
+
+    foreach ($updatedPath in @(
+        (Join-Path $distDirectory "AITranslator.exe"),
+        $publishedVisualElementsManifest,
+        (Join-Path $applicationDirectory "AITranslator.exe")
+    ))
+    {
+        [ShellChangeNotifier]::NotifyItemUpdated($updatedPath)
     }
 
     if (Test-Path -LiteralPath $legacyCacheDirectory)
@@ -649,6 +938,7 @@ try
         Remove-Item -LiteralPath $publishPreviousDirectory -Recurse -Force
     }
 
+    Install-StartMenuShortcut $publishedDirectory
     Complete-Build "[7/7] Build and publish completed." $publishedDirectory
     exit 0
 }

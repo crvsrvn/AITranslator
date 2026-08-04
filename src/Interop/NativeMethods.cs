@@ -124,6 +124,9 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShellNotifyIcon(uint message, ref NotifyIconData data);
 
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int SetCurrentProcessExplicitAppUserModelID(string applicationUserModelId);
+
     [DllImport("user32.dll", EntryPoint = "LoadImageW", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern nint LoadImage(nint instance, string name, uint type, int desiredWidth, int desiredHeight, uint loadFlags);
 
