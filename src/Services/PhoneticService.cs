@@ -68,13 +68,13 @@ public sealed partial class PhoneticService : IDisposable
         return result with
         {
             SourcePinyin = NullWhenEmpty(sourcePinyin ?? string.Empty),
-            ChineseDefinitionPinyin = null,
+            DefinitionPinyin = null,
             EnglishText = englishText.Trim(),
             EnglishPronunciations = pronunciations,
             GeneralMeaningPinyin = null,
             InternetMeaningPinyin = null,
             ProfessionalMeaningPinyins = [],
-            ContextChineseDefinitionPinyin = null,
+            ContextDefinitionPinyin = null,
             ContextEnglishText = NullWhenEmpty(contextEnglishText),
             ContextEnglishPronunciations = []
         };

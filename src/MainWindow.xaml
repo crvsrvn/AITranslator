@@ -57,7 +57,7 @@
                     <NavigationViewItem
                         x:Name="TranslationNavigationItem"
                         AutomationProperties.AutomationId="TranslationNavigationItem"
-                        Content="翻译"
+                        Content="{Binding Localization.NavTranslation}"
                         Tag="translate">
                         <NavigationViewItem.Icon>
                             <SymbolIcon Symbol="Find" />
@@ -66,7 +66,7 @@
                     <NavigationViewItem
                         x:Name="FileNavigationItem"
                         AutomationProperties.AutomationId="FileNavigationItem"
-                        Content="文件翻译"
+                        Content="{Binding Localization.NavFileTranslation}"
                         Tag="file">
                         <NavigationViewItem.Icon>
                             <SymbolIcon Symbol="OpenFile" />
@@ -101,19 +101,19 @@
                                     Width="160"
                                     Height="32"
                                     AutomationProperties.AutomationId="GlobalSourceLanguageComboBox"
-                                    AutomationProperties.Name="原文语言"
+                                    AutomationProperties.Name="{Binding Localization.SourceLanguage}"
                                     ItemsSource="{Binding SourceLanguages}"
                                     SelectedItem="{Binding SelectedSourceLanguage, Mode=TwoWay}"
-                                    ToolTipService.ToolTip="原文语言" />
+                                    ToolTipService.ToolTip="{Binding Localization.SourceLanguage}" />
                                 <Button
                                     x:Name="GlobalSwapLanguagesButton"
                                     Grid.Column="1"
                                     Width="40"
                                     Height="32"
                                     AutomationProperties.AutomationId="GlobalSwapLanguagesButton"
-                                    AutomationProperties.Name="交换语言"
+                                    AutomationProperties.Name="{Binding Localization.SwapLanguages}"
                                     Command="{Binding SwapLanguagesCommand}"
-                                    ToolTipService.ToolTip="交换语言">
+                                    ToolTipService.ToolTip="{Binding Localization.SwapLanguages}">
                                     <SymbolIcon Symbol="Switch" />
                                 </Button>
                                 <ComboBox
@@ -122,10 +122,10 @@
                                     Width="160"
                                     Height="32"
                                     AutomationProperties.AutomationId="GlobalTargetLanguageComboBox"
-                                    AutomationProperties.Name="译文语言"
+                                    AutomationProperties.Name="{Binding Localization.TargetLanguage}"
                                     ItemsSource="{Binding TargetLanguages}"
                                     SelectedItem="{Binding SelectedTargetLanguage, Mode=TwoWay}"
-                                    ToolTipService.ToolTip="译文语言" />
+                                    ToolTipService.ToolTip="{Binding Localization.TargetLanguage}" />
                             </Grid>
                             <Border
                                 Grid.Column="1"
@@ -142,7 +142,7 @@
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="GlobalIndustryContextLabel"
                                     Foreground="{ThemeResource AppMutedTextBrush}"
-                                    Text="行业/语境" />
+                                    Text="{Binding Localization.IndustryContext}" />
                                 <TextBox
                                     x:Name="GlobalIndustryContextBox"
                                     Grid.Column="1"
@@ -150,7 +150,7 @@
                                     Height="32"
                                     AutomationProperties.AutomationId="GlobalIndustryContextBox"
                                     MaxLength="120"
-                                    PlaceholderText="通用"
+                                    PlaceholderText="{Binding Localization.General}"
                                     TextChanged="GlobalIndustryContextBox_TextChanged" />
                             </Grid>
                         </Grid>
@@ -172,7 +172,7 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PageTitleStyle}" Text="翻译" />
+                            <TextBlock Style="{StaticResource PageTitleStyle}" Text="{Binding Localization.Translation}" />
                             <Button
                                 Grid.Column="1"
                                 Width="44"
@@ -180,10 +180,10 @@
                                 Margin="0,0,12,0"
                                 Padding="0"
                                 AutomationProperties.AutomationId="CaptureTranslationButton"
-                                AutomationProperties.Name="截屏翻译"
+                                AutomationProperties.Name="{Binding Localization.CaptureTranslation}"
                                 Click="CaptureButton_Click"
                                 Style="{StaticResource PrimaryButtonStyle}"
-                                ToolTipService.ToolTip="截屏翻译">
+                                ToolTipService.ToolTip="{Binding Localization.CaptureTranslation}">
                                 <SymbolIcon
                                     Width="20"
                                     Height="20"
@@ -201,7 +201,7 @@
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="TranslationReasoningLabel"
-                                    Text="思考强度" />
+                                    Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="TranslationReasoningEffortComboBox"
                                     Width="150"
@@ -223,7 +223,7 @@
                                 MinWidth="260"
                                 AcceptsReturn="True"
                                 KeyDown="LookupInput_KeyDown"
-                                PlaceholderText="输入单词或文本"
+                                PlaceholderText="{Binding Localization.InputPlaceholder}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 TextWrapping="Wrap" />
@@ -233,7 +233,7 @@
                                 Style="{StaticResource PrimaryButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
                                     <SymbolIcon Symbol="Find" />
-                                    <TextBlock Text="翻译" />
+                                    <TextBlock Text="{Binding Localization.Translation}" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -255,8 +255,8 @@
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
-                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="离线英汉词典" />
-                                        <ItemsControl ItemsSource="{Binding DictionaryPronunciations}">
+                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.OfflineEnglishChineseDictionary}" />
+                                        <ItemsControl x:Name="DictionaryPronunciationItems" ItemsSource="{Binding DictionaryPronunciations}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -268,8 +268,8 @@
                                                         <Button
                                                             Padding="6"
                                                             Click="PronunciationButton_Click"
-                                                            Tag="{Binding}"
-                                                            ToolTipService.ToolTip="按 IPA 发音">
+                                                            Loaded="PronunciationButton_Loaded"
+                                                            Tag="{Binding}">
                                                             <SymbolIcon Symbol="Volume" />
                                                         </Button>
                                                     </StackPanel>
@@ -305,8 +305,8 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
-                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="AI 查词" />
-                                        <ItemsControl ItemsSource="{Binding AiPronunciations}">
+                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.AiLookup}" />
+                                        <ItemsControl x:Name="AiPronunciationItems" ItemsSource="{Binding AiPronunciations}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -318,8 +318,8 @@
                                                         <Button
                                                             Padding="6"
                                                             Click="PronunciationButton_Click"
-                                                            Tag="{Binding}"
-                                                            ToolTipService.ToolTip="发音">
+                                                            Loaded="PronunciationButton_Loaded"
+                                                            Tag="{Binding}">
                                                             <SymbolIcon Symbol="Volume" />
                                                         </Button>
                                                     </StackPanel>
@@ -344,7 +344,7 @@
                                         Margin="0,10,0,0"
                                         HorizontalAlignment="Right"
                                         Click="CopyAiMeaningButton_Click"
-                                        ToolTipService.ToolTip="复制结果">
+                                        ToolTipService.ToolTip="{Binding Localization.CopyResult}">
                                         <SymbolIcon Symbol="Copy" />
                                     </Button>
                                 </Grid>
@@ -362,7 +362,7 @@
                                         <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="翻译结果" />
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.TranslationResult}" />
                                     <Rectangle
                                         Grid.Row="1"
                                         Height="1"
@@ -383,12 +383,12 @@
                                         Spacing="4">
                                         <Button
                                             Command="{Binding SpeakTranslationCommand}"
-                                            ToolTipService.ToolTip="朗读译文">
+                                            ToolTipService.ToolTip="{Binding Localization.SpeakTranslation}">
                                             <SymbolIcon Symbol="Volume" />
                                         </Button>
                                         <Button
                                             Click="CopyTranslationButton_Click"
-                                            ToolTipService.ToolTip="复制译文">
+                                            ToolTipService.ToolTip="{Binding Localization.CopyTranslation}">
                                             <SymbolIcon Symbol="Copy" />
                                         </Button>
                                     </StackPanel>
@@ -415,7 +415,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PageTitleStyle}" Text="文件翻译" />
+                            <TextBlock Style="{StaticResource PageTitleStyle}" Text="{Binding Localization.NavFileTranslation}" />
                             <StackPanel
                                 x:Name="FileReasoningPanel"
                                 Grid.Column="1"
@@ -423,7 +423,7 @@
                                 AutomationProperties.AutomationId="FileReasoningPanel"
                                 Orientation="Horizontal"
                                 Spacing="8">
-                                <TextBlock VerticalAlignment="Center" Text="思考强度" />
+                                <TextBlock VerticalAlignment="Center" Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="FileReasoningEffortComboBox"
                                     Width="150"
@@ -472,7 +472,7 @@
                                     Click="ChooseFileButton_Click">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <SymbolIcon Symbol="OpenFile" />
-                                        <TextBlock Text="选择文件" />
+                                        <TextBlock Text="{Binding Localization.ChooseFile}" />
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -499,7 +499,7 @@
                                 Command="{Binding CancelFileTranslationCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
                                     <SymbolIcon Symbol="Cancel" />
-                                    <TextBlock Text="取消" />
+                                    <TextBlock Text="{Binding Localization.Cancel}" />
                                 </StackPanel>
                             </Button>
                             <Button
@@ -508,7 +508,7 @@
                                 Style="{StaticResource PrimaryButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
                                     <SymbolIcon Symbol="Save" />
-                                    <TextBlock Text="翻译文件" />
+                                    <TextBlock Text="{Binding Localization.TranslateFile}" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -549,10 +549,10 @@
                                     Height="40"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="OpenOutputFolderButton"
-                                    AutomationProperties.Name="在文件夹中显示"
+                                    AutomationProperties.Name="{Binding Localization.ShowInFolder}"
                                     Click="OpenOutputButton_Click"
                                     IsEnabled="{Binding HasOutputFile}"
-                                    ToolTipService.ToolTip="在文件夹中显示">
+                                    ToolTipService.ToolTip="{Binding Localization.ShowInFolder}">
                                     <SymbolIcon Symbol="Folder" />
                                 </Button>
                                 <Button
@@ -561,10 +561,10 @@
                                     Height="40"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="OpenOutputFileButton"
-                                    AutomationProperties.Name="打开输出文件"
+                                    AutomationProperties.Name="{Binding Localization.OpenOutputFile}"
                                     Click="OpenOutputFileButton_Click"
                                     IsEnabled="{Binding HasOutputFile}"
-                                    ToolTipService.ToolTip="用默认应用打开">
+                                    ToolTipService.ToolTip="{Binding Localization.OpenWithDefaultApp}">
                                     <SymbolIcon Symbol="OpenFile" />
                                 </Button>
                             </Grid>
@@ -580,25 +580,25 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TextBlock Style="{StaticResource PageTitleStyle}" Text="设置" />
+                        <TextBlock Style="{StaticResource PageTitleStyle}" Text="{Binding Localization.Settings}" />
                         <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
                             <StackPanel HorizontalAlignment="Stretch" Spacing="24">
                                 <StackPanel Spacing="12">
-                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="翻译 API" />
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.TranslationApi}" />
                                     <ComboBox
                                         x:Name="ApiPresetComboBox"
-                                        Header="服务预设"
+                                        Header="{Binding Localization.ServicePreset}"
                                         SelectionChanged="ApiPresetComboBox_SelectionChanged" />
-                                    <TextBox x:Name="ApiEndpointBox" Header="API 地址（支持 /v1 基础地址）" />
+                                    <TextBox x:Name="ApiEndpointBox" Header="{Binding Localization.ApiEndpoint}" />
                                     <ComboBox
                                         x:Name="ApiModelBox"
-                                        Header="模型"
+                                        Header="{Binding Localization.Model}"
                                         IsEditable="True"
                                         SelectionChanged="ApiModelBox_SelectionChanged"
                                         TextSubmitted="ApiModelBox_TextSubmitted" />
                                     <PasswordBox
                                         x:Name="ApiKeyBox"
-                                        Header="API 密钥（按服务要求）"
+                                        Header="{Binding Localization.ApiKey}"
                                         PasswordRevealMode="Peek" />
                                     <Grid ColumnSpacing="10">
                                         <Grid.ColumnDefinitions>
@@ -607,13 +607,13 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBox
                                             x:Name="ApiHeaderBox"
-                                            Header="鉴权头（按服务要求）"
-                                            ToolTipService.ToolTip="密钥所在的 HTTP 请求头；无鉴权服务可留空。" />
+                                            Header="{Binding Localization.AuthHeader}"
+                                            ToolTipService.ToolTip="{Binding Localization.AuthHeaderTip}" />
                                         <TextBox
                                             x:Name="ApiPrefixBox"
                                             Grid.Column="1"
-                                            Header="密钥前缀（按服务要求）"
-                                            ToolTipService.ToolTip="加在密钥前的文本；Authorization 常用 Bearer，x-api-key 通常留空。" />
+                                            Header="{Binding Localization.ApiKeyPrefix}"
+                                            ToolTipService.ToolTip="{Binding Localization.ApiKeyPrefixTip}" />
                                     </Grid>
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button
@@ -621,7 +621,7 @@
                                             Click="TestApiButton_Click">
                                             <StackPanel Orientation="Horizontal" Spacing="7">
                                                 <SymbolIcon Symbol="Refresh" />
-                                                <TextBlock Text="测试连接" />
+                                                <TextBlock Text="{Binding Localization.TestConnection}" />
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>
@@ -634,24 +634,32 @@
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
                                 <StackPanel Spacing="12">
-                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="外观" />
-                                    <Grid ColumnSpacing="12">
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.Appearance}" />
+                                    <Grid ColumnSpacing="12" RowSpacing="12">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="200" />
-                                            <ColumnDefinition Width="260" />
-                                            <ColumnDefinition Width="260" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <ComboBox x:Name="ThemeComboBox" Header="主题">
-                                            <ComboBoxItem Content="跟随系统" Tag="System" />
-                                            <ComboBoxItem Content="亮色" Tag="Light" />
-                                            <ComboBoxItem Content="暗色" Tag="Dark" />
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <ComboBox
+                                            x:Name="AppLanguageComboBox"
+                                            Header="{Binding Localization.InterfaceLanguage}"
+                                            ItemsSource="{Binding AppLanguages}"
+                                            SelectionChanged="AppLanguageComboBox_SelectionChanged" />
+                                        <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Header="{Binding Localization.Theme}">
+                                            <ComboBoxItem Content="{Binding Localization.FollowSystem}" Tag="System" />
+                                            <ComboBoxItem Content="{Binding Localization.Light}" Tag="Light" />
+                                            <ComboBoxItem Content="{Binding Localization.Dark}" Tag="Dark" />
                                         </ComboBox>
                                         <ComboBox
                                             x:Name="FontFamilyComboBox"
-                                            Grid.Column="1"
-                                            Header="字体" />
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock Margin="0,0,0,8" Text="字号" />
+                                            Grid.Row="1"
+                                            Header="{Binding Localization.Font}" />
+                                        <StackPanel Grid.Row="1" Grid.Column="1">
+                                            <TextBlock Margin="0,0,0,8" Text="{Binding Localization.FontSize}" />
                                             <Grid ColumnSpacing="10">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -675,7 +683,7 @@
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
                                 <StackPanel Spacing="12">
-                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="全局快捷键" />
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.GlobalShortcuts}" />
                                     <Grid ColumnSpacing="12" RowSpacing="10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1*" />
@@ -687,21 +695,21 @@
                                         </Grid.RowDefinitions>
                                         <TextBox
                                             x:Name="ToggleWindowShortcutBox"
-                                            Header="打开或隐藏主窗口"
+                                            Header="{Binding Localization.ToggleMainWindow}"
                                             IsReadOnly="True"
                                             KeyDown="ShortcutBox_KeyDown"
                                             KeyUp="ShortcutBox_KeyUp" />
                                         <TextBox
                                             x:Name="SelectionShortcutBox"
                                             Grid.Column="1"
-                                            Header="显示划词结果"
+                                            Header="{Binding Localization.ShowSelectionResults}"
                                             IsReadOnly="True"
                                             KeyDown="ShortcutBox_KeyDown"
                                             KeyUp="ShortcutBox_KeyUp" />
                                         <TextBox
                                             x:Name="SpeakShortcutBox"
                                             Grid.Row="1"
-                                            Header="发音"
+                                            Header="{Binding Localization.Speech}"
                                             IsReadOnly="True"
                                             KeyDown="ShortcutBox_KeyDown"
                                             KeyUp="ShortcutBox_KeyUp" />
@@ -709,7 +717,7 @@
                                             x:Name="CaptureShortcutBox"
                                             Grid.Row="1"
                                             Grid.Column="1"
-                                            Header="截屏翻译"
+                                            Header="{Binding Localization.CaptureTranslation}"
                                             IsReadOnly="True"
                                             KeyDown="ShortcutBox_KeyDown"
                                             KeyUp="ShortcutBox_KeyUp" />
@@ -724,10 +732,10 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
-                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="本地数据" />
+                                        <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.LocalData}" />
                                         <HyperlinkButton
                                             Margin="-12,4,0,0"
-                                            Content="ECDICT 离线英汉词典（MIT）"
+                                            Content="{Binding Localization.Ecdict}"
                                             NavigateUri="https://github.com/skywind3000/ECDICT" />
                                     </StackPanel>
                                     <Button
@@ -736,7 +744,7 @@
                                         Click="ClearAiLookupCacheButton_Click">
                                         <StackPanel Orientation="Horizontal" Spacing="7">
                                             <SymbolIcon Symbol="Delete" />
-                                            <TextBlock Text="清除 AI 查词缓存" />
+                                            <TextBlock Text="{Binding Localization.ClearAiLookupCache}" />
                                         </StackPanel>
                                     </Button>
                                 </Grid>
@@ -748,7 +756,7 @@
                                     Style="{StaticResource PrimaryButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="7">
                                         <SymbolIcon Symbol="Save" />
-                                        <TextBlock Text="保存设置" />
+                                        <TextBlock Text="{Binding Localization.SaveSettings}" />
                                     </StackPanel>
                                 </Button>
                             </StackPanel>

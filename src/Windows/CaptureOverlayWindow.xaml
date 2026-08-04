@@ -48,7 +48,7 @@
                         <TextBlock
                             x:Name="StatusText"
                             VerticalAlignment="Center"
-                            Text="正在识别文字…"
+                            Text="{Binding RecognizingText}"
                             TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
@@ -69,7 +69,7 @@
                         IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <SymbolIcon Symbol="View" />
-                            <TextBlock Text="原文" />
+                            <TextBlock Text="{Binding Original}" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -78,7 +78,7 @@
                         IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <SymbolIcon Symbol="Switch" />
-                            <TextBlock Text="译文" />
+                            <TextBlock Text="{Binding Translated}" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -87,7 +87,7 @@
                         IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <SymbolIcon Symbol="Copy" />
-                            <TextBlock Text="复制原文" />
+                            <TextBlock Text="{Binding CopyOriginal}" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -96,7 +96,7 @@
                         IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <SymbolIcon Symbol="Copy" />
-                            <TextBlock Text="复制译文" />
+                            <TextBlock Text="{Binding CopyTranslation}" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -105,7 +105,7 @@
                         IsEnabled="False">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <SymbolIcon Symbol="Copy" />
-                            <TextBlock Text="复制图片" />
+                            <TextBlock Text="{Binding CopyImage}" />
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -121,7 +121,7 @@
             VerticalAlignment="Top"
             Click="CancelButton_Click"
             CornerRadius="4"
-            ToolTipService.ToolTip="取消截屏">
+            ToolTipService.ToolTip="{Binding CancelCapture}">
             <SymbolIcon Symbol="Cancel" />
         </Button>
     </Grid>

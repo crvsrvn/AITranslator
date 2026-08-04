@@ -35,10 +35,11 @@ public sealed record PronunciationOption(string Label, string Ipa, string SpeakT
 
 public sealed record LookupAnalysisResult(
     string DetectedLanguage,
+    string TargetLanguage,
     string SourceText,
     string? SourcePinyin,
-    string ChineseDefinition,
-    string? ChineseDefinitionPinyin,
+    string Definition,
+    string? DefinitionPinyin,
     string EnglishText,
     IReadOnlyList<PronunciationOption> EnglishPronunciations,
     string? GeneralMeaning,
@@ -52,9 +53,9 @@ public sealed record LookupAnalysisResult(
 {
     public string? ContextName { get; init; }
 
-    public string? ContextChineseDefinition { get; init; }
+    public string? ContextDefinition { get; init; }
 
-    public string? ContextChineseDefinitionPinyin { get; init; }
+    public string? ContextDefinitionPinyin { get; init; }
 
     public string? ContextEnglishText { get; init; }
 

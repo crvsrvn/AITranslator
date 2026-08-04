@@ -1,5 +1,6 @@
 using System.Text;
 using AITranslator.Models;
+using AITranslator.Services;
 
 namespace AITranslator.Helpers;
 
@@ -20,11 +21,11 @@ public static class ResultFormatter
             : $"{generalResult}{Environment.NewLine}{contextualResult}";
     }
 
-    public static string FormatDictionary(DictionaryEntry? entry)
+    public static string FormatDictionary(DictionaryEntry? entry, LocalizationService localization)
     {
         if (entry is null)
         {
-            return "离线英汉词典仅收录英文词头，或未找到该词条。";
+            return localization.DictionaryNoEntry;
         }
 
         var builder = new StringBuilder();
@@ -41,12 +42,13 @@ public static class ResultFormatter
                 builder.Append(index++).Append(". ").AppendLine(definition.Definition);
                 if (!string.IsNullOrWhiteSpace(definition.Example))
                 {
-                    builder.Append("   例：").AppendLine(definition.Example);
+                    builder.Append("   ").Append(localization.DictionaryExample).AppendLine(definition.Example);
                 }
 
                 if (definition.Synonyms.Count > 0)
                 {
-                    builder.Append("   同义词：").AppendLine(string.Join("、", definition.Synonyms));
+                    var separator = localization.CurrentLanguage == "en" ? ", " : "、";
+                    builder.Append("   ").Append(localization.DictionarySynonyms).AppendLine(string.Join(separator, definition.Synonyms));
                 }
             }
 
@@ -106,13 +108,13 @@ public static class ResultFormatter
             return "尚无 AI 查词结果。";
         }
 
-        var generalResult = NormalizeLookupLine(result.ChineseDefinition);
+        var generalResult = NormalizeLookupLine(result.Definition);
         if (string.IsNullOrWhiteSpace(result.ContextName))
         {
             return generalResult;
         }
 
-        var contextualSource = result.ContextChineseDefinition;
+        var contextualSource = result.ContextDefinition;
         if (string.IsNullOrWhiteSpace(contextualSource) && result.ProfessionalMeanings.Count > 0)
         {
             contextualSource = result.ProfessionalMeanings[0];

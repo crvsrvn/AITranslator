@@ -28,6 +28,12 @@ public sealed class AppSettings
 
     public string IndustryContext { get; set; } = string.Empty;
 
+    public string AppLanguage { get; set; } = "zh-CN";
+
+    public string TextSourceLanguage { get; set; } = "auto";
+
+    public string TextTargetLanguage { get; set; } = "auto";
+
     public Dictionary<string, ApiProfileSettings> ApiProfiles { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public string Theme { get; set; } = "System";

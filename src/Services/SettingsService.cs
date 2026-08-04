@@ -14,6 +14,7 @@ public sealed class SettingsService
     private readonly AppPaths _paths;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private long _industryContextRevision;
+    private long _languageRevision;
     private long _reasoningEffortRevision;
 
     public SettingsService(AppPaths paths)
@@ -33,6 +34,7 @@ public sealed class SettingsService
 
         await using var stream = File.OpenRead(_paths.SettingsFile);
         Current = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken) ?? new AppSettings();
+        NormalizeLanguages(Current);
         NormalizeReasoningEfforts(Current);
         if (string.Equals(Current.CaptureShortcut, "Ctrl+Alt+A", StringComparison.OrdinalIgnoreCase))
         {
@@ -43,6 +45,7 @@ public sealed class SettingsService
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         var revision = Volatile.Read(ref _industryContextRevision);
+        var languageRevision = Volatile.Read(ref _languageRevision);
         var reasoningRevision = Volatile.Read(ref _reasoningEffortRevision);
         await _saveGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -58,6 +61,13 @@ public sealed class SettingsService
             if (revision != Volatile.Read(ref _industryContextRevision))
             {
                 snapshot.IndustryContext = Current.IndustryContext;
+            }
+
+            if (languageRevision != Volatile.Read(ref _languageRevision))
+            {
+                snapshot.AppLanguage = Current.AppLanguage;
+                snapshot.TextSourceLanguage = Current.TextSourceLanguage;
+                snapshot.TextTargetLanguage = Current.TextTargetLanguage;
             }
 
             if (reasoningRevision != Volatile.Read(ref _reasoningEffortRevision))
@@ -80,6 +90,23 @@ public sealed class SettingsService
         settings.IndustryContext = value.Trim();
         Current = settings;
         Interlocked.Increment(ref _industryContextRevision);
+    }
+
+    public void UpdateAppLanguage(string value)
+    {
+        var settings = Current.Copy();
+        settings.AppLanguage = LanguageCatalog.NormalizeInterfaceLanguage(value);
+        Current = settings;
+        Interlocked.Increment(ref _languageRevision);
+    }
+
+    public void UpdateTextTranslationLanguages(string sourceLanguage, string targetLanguage)
+    {
+        var settings = Current.Copy();
+        settings.TextSourceLanguage = LanguageCatalog.NormalizeTranslationLanguage(sourceLanguage);
+        settings.TextTargetLanguage = LanguageCatalog.NormalizeTranslationLanguage(targetLanguage);
+        Current = settings;
+        Interlocked.Increment(ref _languageRevision);
     }
 
     public void UpdateReasoningEfforts(string translationEffort, string fileTranslationEffort)
@@ -131,5 +158,12 @@ public sealed class SettingsService
             : settings.FileTranslationReasoningEffort.Trim();
         settings.ReasoningEffort = null;
         settings.ActiveReasoningEffort = string.Empty;
+    }
+
+    private static void NormalizeLanguages(AppSettings settings)
+    {
+        settings.AppLanguage = LanguageCatalog.NormalizeInterfaceLanguage(settings.AppLanguage);
+        settings.TextSourceLanguage = LanguageCatalog.NormalizeTranslationLanguage(settings.TextSourceLanguage);
+        settings.TextTargetLanguage = LanguageCatalog.NormalizeTranslationLanguage(settings.TextTargetLanguage);
     }
 }

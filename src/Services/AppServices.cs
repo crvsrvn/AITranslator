@@ -2,12 +2,13 @@ namespace AITranslator.Services;
 
 public sealed class AppServices : IDisposable
 {
-    private AppServices(HttpClient httpClient, AppPaths paths, SettingsService settings, SecretStore secrets, TranslationCache cache,
-        PhoneticService phonetics, OpenDictionaryService dictionary, TranslationOrchestrator translator, SpeechService speech)
+    private AppServices(HttpClient httpClient, AppPaths paths, SettingsService settings, LocalizationService localization, SecretStore secrets,
+        TranslationCache cache, PhoneticService phonetics, OpenDictionaryService dictionary, TranslationOrchestrator translator, SpeechService speech)
     {
         HttpClient = httpClient;
         Paths = paths;
         Settings = settings;
+        Localization = localization;
         Secrets = secrets;
         Cache = cache;
         Phonetics = phonetics;
@@ -21,6 +22,8 @@ public sealed class AppServices : IDisposable
     public AppPaths Paths { get; }
 
     public SettingsService Settings { get; }
+
+    public LocalizationService Localization { get; }
 
     public SecretStore Secrets { get; }
 
@@ -51,11 +54,12 @@ public sealed class AppServices : IDisposable
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AITranslator/1.0");
 
         await settings.LoadAsync(cancellationToken);
+        var localization = new LocalizationService(settings.Current.AppLanguage);
 
         var phonetics = new PhoneticService();
         var provider = new OpenAiCompatibleTranslationProvider(httpClient);
         var translator = new TranslationOrchestrator(provider, secrets, settings, cache, phonetics);
-        var services = new AppServices(httpClient, paths, settings, secrets, cache, phonetics, new OpenDictionaryService(paths, phonetics),
+        var services = new AppServices(httpClient, paths, settings, localization, secrets, cache, phonetics, new OpenDictionaryService(paths, phonetics),
             translator, new SpeechService());
 
         services.Documents = new DocumentTranslationService(translator);

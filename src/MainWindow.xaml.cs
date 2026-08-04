@@ -52,6 +52,8 @@ public sealed partial class MainWindow : Window
         ViewModel = new MainViewModel(services);
         InitializeComponent();
         Root.DataContext = ViewModel;
+        _services.Localization.LanguageChanged += Localization_LanguageChanged;
+        ApplyLocalization();
         Root.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(Root_PreviewKeyDown), true);
         LookupInput.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(LookupInput_KeyDown), true);
         ApiPresetComboBox.ItemsSource = ApiPresetCatalog.Presets;
@@ -69,7 +71,7 @@ public sealed partial class MainWindow : Window
         _hotkeyService = new HotkeyService(HandleHotkey);
         ReportHotkeyErrors(_hotkeyService.RegisterAll(services.Settings.Current));
         _trayIconService = new TrayIconService(_windowHandle,
-            Path.Combine(AppContext.BaseDirectory, "Assets", "AITranslator.ico"), ShowAndFocus, RequestExitApplication);
+            Path.Combine(AppContext.BaseDirectory, "Assets", "AITranslator.ico"), services.Localization, ShowAndFocus, RequestExitApplication);
         Closed += MainWindow_Closed;
 
         Navigation.SelectedItem = Navigation.MenuItems[0];
@@ -346,7 +348,7 @@ public sealed partial class MainWindow : Window
             var text = await _selectionService.CopySelectedTextAsync(targetWindow);
             if (string.IsNullOrWhiteSpace(text))
             {
-                ViewModel.StatusText = "当前程序没有可复制的选中文本。";
+                ViewModel.StatusText = _services.Localization.NoSelectedText;
                 return;
             }
 
@@ -464,7 +466,7 @@ public sealed partial class MainWindow : Window
     {
         if (!File.Exists(ViewModel.FileOutputPath))
         {
-            ViewModel.StatusText = "尚无可打开的输出文件。";
+            ViewModel.StatusText = _services.Localization.NoOutputToOpen;
             return;
         }
 
@@ -480,7 +482,7 @@ public sealed partial class MainWindow : Window
     {
         if (!File.Exists(ViewModel.FileOutputPath))
         {
-            ViewModel.StatusText = "尚无可打开的输出文件。";
+            ViewModel.StatusText = _services.Localization.NoOutputToOpen;
             return;
         }
 
@@ -494,7 +496,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = $"无法打开输出文件：{exception.Message}";
+            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.CannotOpenOutput), exception.Message);
         }
     }
 
@@ -518,15 +520,15 @@ public sealed partial class MainWindow : Window
         {
             var result = await _services.Translator.TestConnectionAsync(ReadSettingsFromUi(), ApiKeyBox.Password);
             ApiTestInfoBar.Severity = InfoBarSeverity.Success;
-            ApiTestInfoBar.Title = "连接成功";
-            ApiTestInfoBar.Message = $"已收到有效响应：{result.Translation}";
+            ApiTestInfoBar.Title = _services.Localization.ConnectionSuccess;
+            ApiTestInfoBar.Message = _services.Localization.Format(nameof(LocalizationService.ValidResponse), result.Translation);
             ApiTestInfoBar.IsOpen = true;
-            ViewModel.StatusText = "API 连接测试成功（设置未保存）";
+            ViewModel.StatusText = _services.Localization.ApiTestSuccessUnsaved;
         }
         catch (Exception exception)
         {
             ApiTestInfoBar.Severity = InfoBarSeverity.Error;
-            ApiTestInfoBar.Title = "连接失败";
+            ApiTestInfoBar.Title = _services.Localization.ConnectionFailed;
             ApiTestInfoBar.Message = exception.Message;
             ApiTestInfoBar.IsOpen = true;
             ViewModel.StatusText = exception.Message;
@@ -549,7 +551,7 @@ public sealed partial class MainWindow : Window
         ApplyApiProfile(preset, GetOrCreateApiProfile(preset));
         ApiKeyBox.Password = _apiKeys.TryGetValue(preset.Id, out var apiKey) ? apiKey : string.Empty;
         ApiTestInfoBar.IsOpen = false;
-        ViewModel.StatusText = $"已恢复 {preset.DisplayName} 的配置；点击保存后才会生效。";
+        ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.ProfileRestored), preset.DisplayName);
     }
 
     private void ApiModelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -589,7 +591,26 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = $"保存思考强度失败：{exception.Message}";
+            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveReasoningFailed), exception.Message);
+        }
+    }
+
+    private async void AppLanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoadingSettings || AppLanguageComboBox.SelectedItem is not LanguageOption language)
+        {
+            return;
+        }
+
+        _services.Settings.UpdateAppLanguage(language.Code);
+        _services.Localization.SetLanguage(language.Code);
+        try
+        {
+            await _services.Settings.SaveCurrentAsync();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message);
         }
     }
 
@@ -601,12 +622,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void PronunciationButton_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            ApplyPronunciationTooltip(button);
+        }
+    }
+
     private async void ClearAiLookupCacheButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             await _services.Cache.ClearAiLookupAsync();
-            ViewModel.StatusText = "AI 查词缓存已清除";
+            ViewModel.StatusText = _services.Localization.CacheCleared;
         }
         catch (Exception exception)
         {
@@ -761,6 +790,7 @@ public sealed partial class MainWindow : Window
             ApplyApiProfile(preset, GetOrCreateApiProfile(preset));
             ApiKeyBox.Password = _apiKeys.TryGetValue(preset.Id, out var apiKey) ? apiKey : string.Empty;
             GlobalIndustryContextBox.Text = settings.IndustryContext ?? string.Empty;
+            AppLanguageComboBox.SelectedItem = LanguageCatalog.InterfaceLanguages.First(item => item.Code == settings.AppLanguage);
             ThemeComboBox.SelectedIndex = settings.Theme switch
             {
                 "Light" => 1,
@@ -776,7 +806,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = $"读取设置失败：{exception.Message}";
+            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.ReadSettingsFailed), exception.Message);
         }
         finally
         {
@@ -803,6 +833,9 @@ public sealed partial class MainWindow : Window
             ApiKeyHeader = profile.ApiKeyHeader,
             ApiKeyPrefix = profile.ApiKeyPrefix,
             IndustryContext = GlobalIndustryContextBox.Text.Trim(),
+            AppLanguage = (AppLanguageComboBox.SelectedItem as LanguageOption)?.Code ?? _services.Localization.CurrentLanguage,
+            TextSourceLanguage = ViewModel.SelectedSourceLanguage.Code,
+            TextTargetLanguage = ViewModel.SelectedTargetLanguage.Code,
             ApiProfiles = profiles,
             Theme = selectedTheme,
             FontFamily = selectedFont,
@@ -818,6 +851,60 @@ public sealed partial class MainWindow : Window
     {
         AppearanceHelper.Apply(Root, settings);
         _quickLookupWindow?.ApplyAppearance(settings);
+    }
+
+    private void ApplyLocalization()
+    {
+        if (Navigation.SettingsItem is NavigationViewItem settingsItem)
+        {
+            settingsItem.Content = _services.Localization.Settings;
+        }
+    }
+
+    private void Localization_LanguageChanged(object? sender, EventArgs e)
+    {
+        ApplyLocalization();
+        UpdatePronunciationTooltips(Root);
+        if (ApiPresetComboBox.SelectedItem is not ApiPreset preset)
+        {
+            return;
+        }
+
+        UpdateReasoningOptions(preset, GetSelectedApiModel(), ReadReasoningEffort(TranslationReasoningEffortComboBox),
+            ReadReasoningEffort(FileReasoningEffortComboBox));
+    }
+
+    private void UpdatePronunciationTooltips(DependencyObject root)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is Button { Tag: PronunciationOption } button)
+            {
+                ApplyPronunciationTooltip(button);
+            }
+
+            UpdatePronunciationTooltips(child);
+        }
+    }
+
+    private void ApplyPronunciationTooltip(Button button)
+    {
+        var isDictionaryButton = IsDescendantOf(button, DictionaryPronunciationItems);
+        ToolTipService.SetToolTip(button, isDictionaryButton ? _services.Localization.PronounceIpa : _services.Localization.Pronounce);
+    }
+
+    private static bool IsDescendantOf(DependencyObject child, DependencyObject ancestor)
+    {
+        for (var current = child; current is not null; current = VisualTreeHelper.GetParent(current))
+        {
+            if (ReferenceEquals(current, ancestor))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task SaveSettingsAsync()
@@ -846,10 +933,10 @@ public sealed partial class MainWindow : Window
         }
 
         ApplyAppearance(settings);
-        ViewModel.StatusText = "设置已保存";
+        ViewModel.StatusText = _services.Localization.SettingsSaved;
     }
 
-    private static void ValidateShortcuts(AppSettings settings)
+    private void ValidateShortcuts(AppSettings settings)
     {
         var values = new[]
         {
@@ -876,7 +963,7 @@ public sealed partial class MainWindow : Window
 
         if (normalized.Distinct(StringComparer.OrdinalIgnoreCase).Count() != normalized.Count)
         {
-            throw new InvalidOperationException("四个全局快捷键不能重复。");
+            throw new InvalidOperationException(_services.Localization.DuplicateHotkeys);
         }
     }
 
@@ -1019,7 +1106,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateReasoningOptions(ApiPreset preset, string model, string translationEffort, string fileTranslationEffort)
     {
-        var effortOptions = ApiPresetCatalog.GetReasoningEfforts(preset, model);
+        var effortOptions = ApiPresetCatalog.GetReasoningEfforts(preset, model)
+            .Select(item => new ReasoningEffortOption(item.Value, GetReasoningEffortDisplayName(item.Value)))
+            .ToArray();
         var wasLoadingSettings = _isLoadingSettings;
         _isLoadingSettings = true;
         try
@@ -1054,6 +1143,17 @@ public sealed partial class MainWindow : Window
 
     private static string ReadReasoningEffort(ComboBox comboBox) =>
         (comboBox.SelectedItem as ReasoningEffortOption)?.Value ?? string.Empty;
+
+    private string GetReasoningEffortDisplayName(string value) => value switch
+    {
+        "off" => _services.Localization.ReasoningOff,
+        "low" => _services.Localization.ReasoningLow,
+        "medium" => _services.Localization.ReasoningMedium,
+        "high" => _services.Localization.ReasoningHigh,
+        "xhigh" => _services.Localization.ReasoningVeryHigh,
+        "max" => _services.Localization.ReasoningMaximum,
+        _ => _services.Localization.AutoReasoning
+    };
 
     private string GetSelectedApiModel()
     {
@@ -1105,7 +1205,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = $"保存行业/语境失败：{exception.Message}";
+            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveContextFailed), exception.Message);
         }
     }
 
@@ -1114,6 +1214,7 @@ public sealed partial class MainWindow : Window
         _isClosing = true;
         _industryContextSaveTimer.Stop();
         _industryContextSaveTimer.Tick -= IndustryContextSaveTimer_Tick;
+        _services.Localization.LanguageChanged -= Localization_LanguageChanged;
         _captureWindow?.Close();
         try
         {

@@ -9,8 +9,11 @@ namespace AITranslator.Services;
 public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
 {
     private const string TranslationSystemPrompt = """
-                                                   You are a precise professional translator. Preserve names, numbers, formatting, code, and terminology.
-                                                   Return JSON only, using this schema:
+                                                    You are a precise professional translator. Preserve names, numbers, formatting, code, and terminology.
+                                                    The source and target language requirements in the user message are authoritative. Never choose a different
+                                                    output language. When the effective source and target languages are the same, explain the source meaning in
+                                                    that language in a concise dictionary style instead of copying or paraphrasing it without explanation.
+                                                    Return JSON only, using this schema:
                                                    {
                                                      "translation": "complete translated text",
                                                      "contextual_translation": "translation adapted to the configured industry/context, or empty string",
@@ -26,27 +29,30 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                                                    """;
 
     private const string LookupSystemPrompt = """
-                                              You are a bilingual Chinese-English lexicographer. Analyze the query as a word or short phrase.
-                                              Return JSON only, using this schema:
-                                              {
-                                                "detected_language": "zh-CN or en",
-                                                "source_text": "the exact query",
-                                                "source_pinyin": "tone-marked Hanyu Pinyin for a Chinese query, otherwise empty",
-                                                "chinese_definition": "one short line containing only the general Chinese translation",
-                                                "english_text": "English translation for Chinese input, or the English headword for English input",
-                                                "english_pronunciations": [
-                                                  {"label":"美式 IPA", "ipa":"IPA without slash brackets", "speak_text":"matching English text", "language_code":"en-US"}
-                                                ],
-                                                "contextual_chinese_definition": "one short Chinese sentence explaining the query in the configured industry/context, or empty string"
-                                              }
-                                              Keep chinese_definition general, concise, and limited to translation equivalents. Do not add a label, explanation,
-                                              heading, bullet, or line break. If an industry/context is configured, contextual_chinese_definition must be one
-                                              concise domain-specific sentence. Begin it directly with the result content and, for an English query, with the
-                                              exact query when natural. Never begin it with phrases such as "在[context]中", "在[context]领域中", the context
-                                              name, a heading, or a field label. Otherwise keep contextual_chinese_definition empty.
-                                              For a Chinese query, source_pinyin must contain tone-marked Hanyu Pinyin. Do not add pinyin to Chinese
-                                              definitions or explanations. Every English headword or general English translation must have IPA.
-                                              Never add Markdown fences.
+                                               You are a precise multilingual lexicographer. Analyze the query as a word or short phrase and obey the source
+                                               and target language requirements in the user message. Never silently replace the requested target language.
+                                               When the effective source and target languages are the same, write a concise dictionary-style explanation in
+                                               that language instead of copying the query.
+                                               Return JSON only, using this schema:
+                                               {
+                                                 "detected_language": "detected BCP-47 language code",
+                                                 "target_language": "actual output BCP-47 language code",
+                                                 "source_text": "the exact query",
+                                                 "source_pinyin": "tone-marked Hanyu Pinyin for a Chinese query, otherwise empty",
+                                                 "definition": "one concise target-language translation or same-language explanation",
+                                                 "english_text": "English headword or translation when source or target is English, otherwise empty",
+                                                 "english_pronunciations": [
+                                                   {"label":"US IPA", "ipa":"IPA without slash brackets", "speak_text":"matching English text", "language_code":"en-US"}
+                                                 ],
+                                                 "contextual_definition": "one concise target-language definition for the configured industry/context, or empty string"
+                                               }
+                                               Keep definition general, concise, and free of labels, headings, bullets, and line breaks. If an industry/context
+                                               is configured, contextual_definition must be one concise domain-specific sentence in the same target language.
+                                               Begin it directly with the result content; never begin with the context name, a heading, or a field label.
+                                               Otherwise keep contextual_definition empty.
+                                               For a Chinese query, source_pinyin must contain tone-marked Hanyu Pinyin. Do not add pinyin to Chinese
+                                               definitions or explanations. Every English headword or general English translation must have IPA.
+                                               Never add Markdown fences.
                                               """;
 
     private const string CaptureTranslationSystemPrompt = """
@@ -97,7 +103,8 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         CancellationToken cancellationToken = default)
     {
         var context = settings.IndustryContext?.Trim() ?? string.Empty;
-        var content = await SendPromptAsync(TranslationSystemPrompt, BuildTranslationPrompt(request, context), settings, apiKey, cancellationToken);
+        var content = await SendPromptAsync(TranslationSystemPrompt, BuildTranslationPrompt(request, context, settings.AppLanguage), settings, apiKey,
+            cancellationToken);
         return ParseTranslationContent(content, settings.ApiPreset, context);
     }
 
@@ -105,7 +112,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         CancellationToken cancellationToken = default)
     {
         var context = settings.IndustryContext?.Trim() ?? string.Empty;
-        var prompt = BuildCaptureTranslationPrompt(request, context);
+        var prompt = BuildCaptureTranslationPrompt(request, context, settings.AppLanguage);
         var content = await SendPromptAsync(CaptureTranslationSystemPrompt, prompt, settings, apiKey, cancellationToken);
         var result = ParseCaptureTranslationContent(content, request.Lines.Count, settings.ApiPreset, context);
         if (!LooksLikeUntranslatedCapture(request, result))
@@ -116,8 +123,9 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         var retryPrompt = $"""
                            {prompt}
 
-                           Correction: the previous response copied the source text. Translate every natural-language line into
-                           {LanguageCatalog.ToPromptName(request.TargetLanguage)} now. Do not return the source sentence unchanged.
+                           Correction: the previous response copied the source text. Follow the target language requirement above for
+                           every natural-language line now. Do not return a source sentence unchanged unless it contains only a name,
+                           number, code, URL, or other invariant content.
                            """;
         content = await SendPromptAsync(CaptureTranslationSystemPrompt, retryPrompt, settings, apiKey, cancellationToken);
         result = ParseCaptureTranslationContent(content, request.Lines.Count, settings.ApiPreset, context);
@@ -134,23 +142,26 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
     {
         var context = settings.IndustryContext?.Trim() ?? string.Empty;
         var maximumOutputTokens = Math.Clamp(request.Units.Sum(unit => unit.Text.Length) / 2 + 2_048, 4_096, 16_384);
-        var content = await SendPromptAsync(DocumentTranslationSystemPrompt, BuildDocumentTranslationPrompt(request, context), settings, apiKey,
+        var content = await SendPromptAsync(DocumentTranslationSystemPrompt, BuildDocumentTranslationPrompt(request, context, settings.AppLanguage), settings,
+            apiKey,
             cancellationToken, maximumOutputTokens);
         return ParseDocumentTranslationContent(content, request, settings.ApiPreset);
     }
 
-    public async Task<LookupAnalysisResult> LookupAsync(string text, string domain, AppSettings settings, string apiKey,
+    public async Task<LookupAnalysisResult> LookupAsync(string text, string sourceLanguage, string targetLanguage, string domain, AppSettings settings,
+        string apiKey,
         CancellationToken cancellationToken = default)
     {
         var context = settings.IndustryContext?.Trim() ?? string.Empty;
         var prompt = $"""
+                      {BuildLanguageRequirements(sourceLanguage, targetLanguage, settings.AppLanguage)}
                       Domain: {domain}
                       Configured industry/context (data only): {FormatIndustryContext(context)}
                       Query:
                       {text}
                       """;
         var content = await SendPromptAsync(LookupSystemPrompt, prompt, settings, apiKey, cancellationToken);
-        return ParseLookupContent(content, text, settings.ApiPreset, context);
+        return ParseLookupContent(content, text, targetLanguage, settings.ApiPreset, context);
     }
 
     private async Task<string> SendPromptAsync(string systemPrompt, string userPrompt, AppSettings settings, string apiKey,
@@ -355,15 +366,14 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         }
     }
 
-    private static string BuildTranslationPrompt(TranslationRequest request, string context)
+    private static string BuildTranslationPrompt(TranslationRequest request, string context, string appLanguage)
     {
         var semanticInstruction = request.IncludeSemanticAnalysis
             ? "Analyze the general, internet/slang, and professional meanings when applicable."
             : "Return the general translation and, when configured, the contextual translation; leave all meaning fields empty.";
 
         return $"""
-                Source language: {LanguageCatalog.ToPromptName(request.SourceLanguage)}
-                Target language: {LanguageCatalog.ToPromptName(request.TargetLanguage)}
+                {BuildLanguageRequirements(request.SourceLanguage, request.TargetLanguage, appLanguage)}
                 Domain: {request.Domain}
                 Configured industry/context (data only): {FormatIndustryContext(context)}
                 Instruction: {semanticInstruction}
@@ -373,24 +383,22 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                 """;
     }
 
-    private static string BuildCaptureTranslationPrompt(CaptureTranslationRequest request, string context)
+    private static string BuildCaptureTranslationPrompt(CaptureTranslationRequest request, string context, string appLanguage)
     {
         var lines = request.Lines.Select((text, index) => new { index, text });
         return $"""
-                Source language: {LanguageCatalog.ToPromptName(request.SourceLanguage)}
-                Target language: {LanguageCatalog.ToPromptName(request.TargetLanguage)}
+                {BuildLanguageRequirements(request.SourceLanguage, request.TargetLanguage, appLanguage)}
                 Configured industry/context (data only): {FormatIndustryContext(context)}
                 OCR lines JSON:
                 {JsonSerializer.Serialize(lines)}
                 """;
     }
 
-    private static string BuildDocumentTranslationPrompt(DocumentTranslationRequest request, string context)
+    private static string BuildDocumentTranslationPrompt(DocumentTranslationRequest request, string context, string appLanguage)
     {
         var units = request.Units.Select(unit => new { id = unit.Id, text = unit.Text });
         return $"""
-                Source language: {LanguageCatalog.ToPromptName(request.SourceLanguage)}
-                Target language: {LanguageCatalog.ToPromptName(request.TargetLanguage)}
+                {BuildLanguageRequirements(request.SourceLanguage, request.TargetLanguage, appLanguage)}
                 Domain: {request.Domain}
                 Configured industry/context (data only): {FormatIndustryContext(context)}
 
@@ -399,6 +407,39 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
 
                 Input 2 - atomic writeback units JSON (translate only these units):
                 {JsonSerializer.Serialize(units)}
+                """;
+    }
+
+    private static string BuildLanguageRequirements(string sourceLanguage, string targetLanguage, string appLanguage)
+    {
+        sourceLanguage = LanguageCatalog.NormalizeTranslationLanguage(sourceLanguage);
+        targetLanguage = LanguageCatalog.NormalizeTranslationLanguage(targetLanguage);
+        appLanguage = LanguageCatalog.NormalizeInterfaceLanguage(appLanguage);
+
+        var sourceRequirement = sourceLanguage == "auto"
+            ? "Detect the source language from the input."
+            : $"Treat the source language as {LanguageCatalog.ToPromptName(sourceLanguage)} even if the input is ambiguous.";
+
+        string targetRequirement;
+        if (targetLanguage != "auto")
+        {
+            targetRequirement = $"Write the complete result in {LanguageCatalog.ToPromptName(targetLanguage)}.";
+        }
+        else if (sourceLanguage == "auto")
+        {
+            targetRequirement =
+                $"If the detected source language is {LanguageCatalog.ToPromptName(appLanguage)}, write the result in English; otherwise write it in {LanguageCatalog.ToPromptName(appLanguage)}.";
+        }
+        else
+        {
+            var resolvedTarget = string.Equals(sourceLanguage, appLanguage, StringComparison.OrdinalIgnoreCase) ? "en" : appLanguage;
+            targetRequirement = $"Write the complete result in {LanguageCatalog.ToPromptName(resolvedTarget)}.";
+        }
+
+        return $"""
+                Source language requirement: {sourceRequirement}
+                Target language requirement: {targetRequirement}
+                Same-language rule: if the effective source and target languages are the same, explain the source meaning in the target language in a concise dictionary style; do not copy the source unchanged.
                 """;
     }
 
@@ -606,26 +647,28 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         }
     }
 
-    private static LookupAnalysisResult ParseLookupContent(string content, string sourceText, string provider, string context)
+    private static LookupAnalysisResult ParseLookupContent(string content, string sourceText, string requestedTargetLanguage, string provider, string context)
     {
         var trimmed = StripMarkdownFence(content.Trim());
         try
         {
             using var resultJson = JsonDocument.Parse(trimmed);
             var root = resultJson.RootElement;
-            var definition = ReadString(root, "chinese_definition");
+            var definition = ReadString(root, "definition");
             if (string.IsNullOrWhiteSpace(definition))
             {
                 throw new TranslationServiceException("翻译 API 返回了空释义。");
             }
 
-            return new LookupAnalysisResult(ReadString(root, "detected_language"), NullWhenEmpty(ReadString(root, "source_text")) ?? sourceText,
+            var targetLanguage = NullWhenEmpty(ReadString(root, "target_language")) ?? requestedTargetLanguage;
+            return new LookupAnalysisResult(ReadString(root, "detected_language"), targetLanguage,
+                NullWhenEmpty(ReadString(root, "source_text")) ?? sourceText,
                 NullWhenEmpty(ReadString(root, "source_pinyin")), definition, null, ReadString(root, "english_text"), ReadPronunciations(root),
                 NullWhenEmpty(ReadString(root, "general_meaning")), null, NullWhenEmpty(ReadString(root, "internet_meaning")), null,
                 ReadStringArray(root, "professional_meanings"), [], provider)
             {
                 ContextName = NullWhenEmpty(context),
-                ContextChineseDefinition = NullWhenEmpty(ReadString(root, "contextual_chinese_definition")),
+                ContextDefinition = NullWhenEmpty(ReadString(root, "contextual_definition")),
                 ContextEnglishText = NullWhenEmpty(ReadString(root, "contextual_english_text")),
                 ContextEnglishPronunciations = ReadPronunciations(root, "contextual_english_pronunciations")
             };
@@ -637,7 +680,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                 throw new TranslationServiceException("翻译 API 返回了空内容。");
             }
 
-            return new LookupAnalysisResult(string.Empty, sourceText, null, trimmed, null,
+            return new LookupAnalysisResult(string.Empty, requestedTargetLanguage, sourceText, null, trimmed, null,
                 PhoneticService.ContainsEnglish(sourceText) ? sourceText : string.Empty, [], null, null, null, null, [], [], provider)
             {
                 ContextName = NullWhenEmpty(context)

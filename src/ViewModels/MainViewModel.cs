@@ -13,25 +13,38 @@ public partial class MainViewModel : ObservableObject
     private readonly AppServices _services;
     private CancellationTokenSource? _fileTranslationCancellation;
     private CancellationTokenSource? _lookupCancellation;
+    private IReadOnlyList<LanguageOption> _sourceLanguages = [];
+    private IReadOnlyList<LanguageOption> _targetLanguages = [];
+    private bool _isRefreshingLanguageOptions;
 
     public MainViewModel(AppServices services)
     {
         _services = services;
+        _dictionaryText = Localization.NoDictionaryResult;
+        _aiMeaningText = Localization.NoSemanticResult;
+        _fileProgressText = Localization.FileNotSelected;
+        _statusText = Localization.Ready;
+        RefreshLanguageOptions(services.Settings.Current.TextSourceLanguage, services.Settings.Current.TextTargetLanguage);
+        Localization.LanguageChanged += Localization_LanguageChanged;
     }
 
-    public IReadOnlyList<LanguageOption> SourceLanguages => LanguageCatalog.SourceLanguages;
+    public LocalizationService Localization => _services.Localization;
 
-    public IReadOnlyList<LanguageOption> TargetLanguages => LanguageCatalog.TargetLanguages;
+    public IReadOnlyList<LanguageOption> AppLanguages => LanguageCatalog.InterfaceLanguages;
+
+    public IReadOnlyList<LanguageOption> SourceLanguages => _sourceLanguages;
+
+    public IReadOnlyList<LanguageOption> TargetLanguages => _targetLanguages;
 
     public ObservableCollection<PronunciationOption> DictionaryPronunciations { get; } = [];
 
     public ObservableCollection<PronunciationOption> AiPronunciations { get; } = [];
 
     public string SelectedFileDisplayText =>
-        string.IsNullOrWhiteSpace(SelectedFilePath) ? "未选择文件" : SelectedFilePath;
+        string.IsNullOrWhiteSpace(SelectedFilePath) ? Localization.NoFileSelected : SelectedFilePath;
 
     public string FileOutputDisplayText =>
-        string.IsNullOrWhiteSpace(FileOutputPath) ? "尚无输出文件" : FileOutputPath;
+        string.IsNullOrWhiteSpace(FileOutputPath) ? Localization.NoOutputFile : FileOutputPath;
 
     public string FileOutputFormatText =>
         string.IsNullOrWhiteSpace(FileOutputPath) ? "PDF · DOCX · PPTX · XLSX" : Path.GetExtension(FileOutputPath).TrimStart('.').ToUpperInvariant();
@@ -47,15 +60,15 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private Visibility _textResultVisibility = Visibility.Collapsed;
 
-    [ObservableProperty] private LanguageOption _selectedSourceLanguage = LanguageCatalog.SourceLanguages[0];
+    [ObservableProperty] private LanguageOption _selectedSourceLanguage = null!;
 
-    [ObservableProperty] private LanguageOption _selectedTargetLanguage = LanguageCatalog.TargetLanguages[0];
+    [ObservableProperty] private LanguageOption _selectedTargetLanguage = null!;
 
     [ObservableProperty] private string _lookupPhonetic = string.Empty;
 
-    [ObservableProperty] private string _dictionaryText = "暂无词典结果";
+    [ObservableProperty] private string _dictionaryText = string.Empty;
 
-    [ObservableProperty] private string _aiMeaningText = "暂无语义结果";
+    [ObservableProperty] private string _aiMeaningText = string.Empty;
 
     [ObservableProperty] private string? _lookupAudioUrl;
 
@@ -65,7 +78,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private double _fileProgress;
 
-    [ObservableProperty] private string _fileProgressText = "尚未选择文件";
+    [ObservableProperty] private string _fileProgressText = string.Empty;
 
     [ObservableProperty] private bool _isBusy;
 
@@ -74,7 +87,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(CancelFileTranslationCommand))]
     private bool _isFileTranslating;
 
-    [ObservableProperty] private string _statusText = "就绪";
+    [ObservableProperty] private string _statusText = string.Empty;
 
     [RelayCommand(CanExecute = nameof(CanSmartTranslate))]
     private async Task SmartTranslateAsync()
@@ -96,7 +109,7 @@ public partial class MainViewModel : ObservableObject
             var result = await _services.Translator.TranslateAsync(new TranslationRequest(query, SelectedSourceLanguage.Code,
                 SelectedTargetLanguage.Code));
             TranslatedText = ResultFormatter.FormatTranslation(result);
-            StatusText = result.FromCache ? "已从本地缓存读取" : "翻译完成";
+            StatusText = result.FromCache ? Localization.LoadedFromCache : Localization.TranslationComplete;
         });
     }
 
@@ -108,16 +121,16 @@ public partial class MainViewModel : ObservableObject
         var cancellation = _lookupCancellation;
 
         IsBusy = true;
-        StatusText = "正在读取离线词典";
+        StatusText = Localization.ReadingOfflineDictionary;
         LookupPhonetic = string.Empty;
         LookupAudioUrl = null;
-        DictionaryText = "正在读取离线词典…";
-        AiMeaningText = "AI 正在分析…";
+        DictionaryText = Localization.ReadingOfflineDictionaryEllipsis;
+        AiMeaningText = Localization.AiAnalyzing;
         DictionaryPronunciations.Clear();
         AiPronunciations.Clear();
 
         var dictionaryTask = _services.Dictionary.LookupEnglishAsync(query, cancellation.Token);
-        var aiTask = _services.Translator.LookupAsync(query, "general", cancellation.Token);
+        var aiTask = _services.Translator.LookupAsync(query, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code, "general", cancellation.Token);
         DictionaryEntry? dictionary = null;
         LookupAnalysisResult? aiResult = null;
         Exception? dictionaryError = null;
@@ -136,9 +149,11 @@ public partial class MainViewModel : ObservableObject
 
             LookupPhonetic = dictionary?.Phonetic ?? string.Empty;
             LookupAudioUrl = dictionary?.AudioUrl;
-            DictionaryText = dictionaryError is null ? ResultFormatter.FormatDictionary(dictionary) : $"离线词典不可用：{dictionaryError.Message}";
+            DictionaryText = dictionaryError is null
+                ? ResultFormatter.FormatDictionary(dictionary, Localization)
+                : Localization.Format(nameof(LocalizationService.OfflineDictionaryUnavailable), dictionaryError.Message);
             ReplacePronunciations(DictionaryPronunciations, dictionary?.Pronunciations ?? []);
-            StatusText = "离线词典已显示，AI 正在分析";
+            StatusText = Localization.OfflineDictionaryShown;
 
             try
             {
@@ -151,12 +166,14 @@ public partial class MainViewModel : ObservableObject
 
             if (dictionary is null && aiResult is null)
             {
-                throw new InvalidOperationException(aiError?.Message ?? dictionaryError?.Message ?? "未找到查询结果。");
+                throw new InvalidOperationException(aiError?.Message ?? dictionaryError?.Message ?? Localization.NoLookupResult);
             }
 
-            AiMeaningText = aiResult is null ? $"AI 查词不可用：{aiError?.Message}" : ResultFormatter.FormatLookupAi(aiResult);
+            AiMeaningText = aiResult is null
+                ? Localization.Format(nameof(LocalizationService.AiLookupUnavailable), aiError?.Message)
+                : ResultFormatter.FormatLookupAi(aiResult);
             ReplacePronunciations(AiPronunciations, PhoneticService.EnumerateLookupPronunciations(aiResult));
-            StatusText = dictionaryError is null && aiError is null ? "查词完成" : "已显示可用的部分结果";
+            StatusText = dictionaryError is null && aiError is null ? Localization.LookupComplete : Localization.PartialResults;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -211,9 +228,7 @@ public partial class MainViewModel : ObservableObject
         var oldSource = SelectedSourceLanguage;
         var oldTarget = SelectedTargetLanguage;
         SelectedSourceLanguage = SourceLanguages.FirstOrDefault(item => item.Code == oldTarget.Code) ?? SourceLanguages[0];
-        SelectedTargetLanguage = oldSource.Code == "auto"
-            ? TargetLanguages.First(item => item.Code == "en")
-            : TargetLanguages.FirstOrDefault(item => item.Code == oldSource.Code) ?? TargetLanguages[0];
+        SelectedTargetLanguage = TargetLanguages.FirstOrDefault(item => item.Code == oldSource.Code) ?? TargetLanguages[0];
         (InputText, TranslatedText) = (TranslatedText, InputText);
     }
 
@@ -235,17 +250,17 @@ public partial class MainViewModel : ObservableObject
             var report = await _services.Documents.TranslateAsync(SelectedFilePath, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code,
                 "general", progress, _fileTranslationCancellation.Token);
             FileOutputPath = report.OutputPath;
-            FileProgressText = $"已翻译 {report.TranslatedUnitCount} 个文本单元";
-            StatusText = "文件翻译完成";
+            FileProgressText = Localization.Format(nameof(LocalizationService.FileTranslatedUnits), report.TranslatedUnitCount);
+            StatusText = Localization.FileTranslationComplete;
         }
         catch (OperationCanceledException)
         {
-            FileProgressText = "已取消";
-            StatusText = "文件翻译已取消；未完成的副本可能保留在源目录。";
+            FileProgressText = Localization.Canceled;
+            StatusText = Localization.FileTranslationCanceled;
         }
         catch (Exception exception)
         {
-            FileProgressText = "翻译失败";
+            FileProgressText = Localization.TranslationFailed;
             StatusText = exception.Message;
         }
         finally
@@ -291,10 +306,14 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsBusyChanged(bool value) =>
         SmartTranslateCommand.NotifyCanExecuteChanged();
 
+    partial void OnSelectedSourceLanguageChanged(LanguageOption value) => PersistTranslationLanguages();
+
+    partial void OnSelectedTargetLanguageChanged(LanguageOption value) => PersistTranslationLanguages();
+
     private async Task RunBusyAsync(Func<Task> action)
     {
         IsBusy = true;
-        StatusText = "处理中";
+        StatusText = Localization.Processing;
         try
         {
             await action();
@@ -315,6 +334,65 @@ public partial class MainViewModel : ObservableObject
         foreach (var value in values)
         {
             target.Add(value);
+        }
+    }
+
+    private void RefreshLanguageOptions(string sourceLanguage, string targetLanguage)
+    {
+        _isRefreshingLanguageOptions = true;
+        try
+        {
+            _sourceLanguages = LanguageCatalog.CreateTranslationLanguages(Localization.CurrentLanguage);
+            _targetLanguages = LanguageCatalog.CreateTranslationLanguages(Localization.CurrentLanguage);
+            OnPropertyChanged(nameof(SourceLanguages));
+            OnPropertyChanged(nameof(TargetLanguages));
+            SelectedSourceLanguage = _sourceLanguages.First(item => item.Code == LanguageCatalog.NormalizeTranslationLanguage(sourceLanguage));
+            SelectedTargetLanguage = _targetLanguages.First(item => item.Code == LanguageCatalog.NormalizeTranslationLanguage(targetLanguage));
+        }
+        finally
+        {
+            _isRefreshingLanguageOptions = false;
+        }
+    }
+
+    private void Localization_LanguageChanged(object? sender, EventArgs e)
+    {
+        RefreshLanguageOptions(SelectedSourceLanguage.Code, SelectedTargetLanguage.Code);
+        OnPropertyChanged(nameof(SelectedFileDisplayText));
+        OnPropertyChanged(nameof(FileOutputDisplayText));
+        if (!IsBusy && string.IsNullOrWhiteSpace(InputText))
+        {
+            DictionaryText = Localization.NoDictionaryResult;
+            AiMeaningText = Localization.NoSemanticResult;
+            StatusText = Localization.Ready;
+        }
+
+        if (!IsFileTranslating && string.IsNullOrWhiteSpace(SelectedFilePath))
+        {
+            FileProgressText = Localization.FileNotSelected;
+        }
+    }
+
+    private void PersistTranslationLanguages()
+    {
+        if (_isRefreshingLanguageOptions || SelectedSourceLanguage is null || SelectedTargetLanguage is null)
+        {
+            return;
+        }
+
+        _services.Settings.UpdateTextTranslationLanguages(SelectedSourceLanguage.Code, SelectedTargetLanguage.Code);
+        _ = SaveTranslationLanguagesAsync();
+    }
+
+    private async Task SaveTranslationLanguagesAsync()
+    {
+        try
+        {
+            await _services.Settings.SaveCurrentAsync();
+        }
+        catch (Exception exception)
+        {
+            StatusText = Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message);
         }
     }
 }

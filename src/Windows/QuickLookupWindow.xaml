@@ -21,7 +21,12 @@
             <Grid
                 x:Name="TitleBar"
                 Padding="16,0,8,0"
-                Background="Transparent">
+                Background="Transparent"
+                PointerCanceled="DragRegion_PointerCanceled"
+                PointerCaptureLost="DragRegion_PointerCaptureLost"
+                PointerMoved="DragRegion_PointerMoved"
+                PointerPressed="DragRegion_PointerPressed"
+                PointerReleased="DragRegion_PointerReleased">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -49,7 +54,7 @@
                     Width="36"
                     Height="36"
                     Click="CloseButton_Click"
-                    ToolTipService.ToolTip="关闭">
+                    ToolTipService.ToolTip="{Binding Close}">
                     <SymbolIcon Symbol="Cancel" />
                 </Button>
             </Grid>
@@ -67,15 +72,15 @@
                 <ScrollViewer
                     x:Name="DictionaryPanel"
                     AutomationProperties.AutomationId="DictionaryPanel"
-                    AutomationProperties.Name="离线词典"
+                    AutomationProperties.Name="{Binding OfflineDictionary}"
                     Padding="18,16">
                     <StackPanel Spacing="10">
                         <TextBlock
                             x:Name="DictionaryHeading"
                             AutomationProperties.AutomationId="DictionaryHeading"
-                            AutomationProperties.Name="离线词典"
+                            AutomationProperties.Name="{Binding OfflineDictionary}"
                             Style="{StaticResource SectionTitleStyle}"
-                            Text="离线词典" />
+                            Text="{Binding OfflineDictionary}" />
                         <ItemsControl x:Name="DictionaryPronunciationItems">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -88,8 +93,8 @@
                                         <Button
                                             Padding="6"
                                             Click="PronunciationButton_Click"
-                                            Tag="{Binding}"
-                                            ToolTipService.ToolTip="按 IPA 发音">
+                                            Loaded="PronunciationButton_Loaded"
+                                            Tag="{Binding}">
                                             <SymbolIcon Symbol="Volume" />
                                         </Button>
                                     </StackPanel>
@@ -113,15 +118,15 @@
                     x:Name="AiPanel"
                     Grid.Column="2"
                     AutomationProperties.AutomationId="AiPanel"
-                    AutomationProperties.Name="AI 结果"
+                    AutomationProperties.Name="{Binding AiResult}"
                     Padding="18,16">
                     <StackPanel Spacing="10">
                         <TextBlock
                             x:Name="AiHeading"
                             AutomationProperties.AutomationId="AiHeading"
-                            AutomationProperties.Name="AI 结果"
+                            AutomationProperties.Name="{Binding AiResult}"
                             Style="{StaticResource SectionTitleStyle}"
-                            Text="AI 结果" />
+                            Text="{Binding AiResult}" />
                         <ItemsControl x:Name="AiPronunciationItems">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
@@ -134,8 +139,8 @@
                                         <Button
                                             Padding="6"
                                             Click="PronunciationButton_Click"
-                                            Tag="{Binding}"
-                                            ToolTipService.ToolTip="发音">
+                                            Loaded="PronunciationButton_Loaded"
+                                            Tag="{Binding}">
                                             <SymbolIcon Symbol="Volume" />
                                         </Button>
                                     </StackPanel>
@@ -154,7 +159,12 @@
             <Grid
                 Grid.Row="2"
                 Padding="8,4"
-                Background="Transparent">
+                Background="Transparent"
+                PointerCanceled="DragRegion_PointerCanceled"
+                PointerCaptureLost="DragRegion_PointerCaptureLost"
+                PointerMoved="DragRegion_PointerMoved"
+                PointerPressed="DragRegion_PointerPressed"
+                PointerReleased="DragRegion_PointerReleased">
                 <ProgressRing
                     x:Name="BusyRing"
                     Width="22"

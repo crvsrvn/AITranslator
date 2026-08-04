@@ -1,0 +1,526 @@
+using System.ComponentModel;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using AITranslator.Models;
+
+namespace AITranslator.Services;
+
+public sealed class LocalizationService : INotifyPropertyChanged
+{
+    private static readonly IReadOnlyDictionary<string, string> SimplifiedChinese = new Dictionary<string, string>
+    {
+        [nameof(NavTranslation)] = "翻译",
+        [nameof(NavFileTranslation)] = "文件翻译",
+        [nameof(SourceLanguage)] = "原文语言",
+        [nameof(SwapLanguages)] = "交换语言",
+        [nameof(TargetLanguage)] = "译文语言",
+        [nameof(IndustryContext)] = "行业/语境",
+        [nameof(General)] = "通用",
+        [nameof(Translation)] = "翻译",
+        [nameof(CaptureTranslation)] = "截屏翻译",
+        [nameof(ReasoningEffort)] = "思考强度",
+        [nameof(InputPlaceholder)] = "输入单词或文本",
+        [nameof(OfflineEnglishChineseDictionary)] = "离线英汉词典",
+        [nameof(OfflineDictionary)] = "离线词典",
+        [nameof(PronounceIpa)] = "按 IPA 发音",
+        [nameof(AiLookup)] = "AI 查词",
+        [nameof(AiResult)] = "AI 结果",
+        [nameof(Pronounce)] = "发音",
+        [nameof(CopyResult)] = "复制结果",
+        [nameof(TranslationResult)] = "翻译结果",
+        [nameof(SpeakTranslation)] = "朗读译文",
+        [nameof(CopyTranslation)] = "复制译文",
+        [nameof(ChooseFile)] = "选择文件",
+        [nameof(Cancel)] = "取消",
+        [nameof(TranslateFile)] = "翻译文件",
+        [nameof(ShowInFolder)] = "在文件夹中显示",
+        [nameof(OpenOutputFile)] = "打开输出文件",
+        [nameof(OpenWithDefaultApp)] = "用默认应用打开",
+        [nameof(Settings)] = "设置",
+        [nameof(TranslationApi)] = "翻译 API",
+        [nameof(ServicePreset)] = "服务预设",
+        [nameof(ApiEndpoint)] = "API 地址（支持 /v1 基础地址）",
+        [nameof(Model)] = "模型",
+        [nameof(ApiKey)] = "API 密钥（按服务要求）",
+        [nameof(AuthHeader)] = "鉴权头（按服务要求）",
+        [nameof(AuthHeaderTip)] = "密钥所在的 HTTP 请求头；无鉴权服务可留空。",
+        [nameof(ApiKeyPrefix)] = "密钥前缀（按服务要求）",
+        [nameof(ApiKeyPrefixTip)] = "加在密钥前的文本；Authorization 常用 Bearer，x-api-key 通常留空。",
+        [nameof(TestConnection)] = "测试连接",
+        [nameof(Appearance)] = "外观",
+        [nameof(InterfaceLanguage)] = "软件语言",
+        [nameof(Theme)] = "主题",
+        [nameof(FollowSystem)] = "跟随系统",
+        [nameof(Light)] = "亮色",
+        [nameof(Dark)] = "暗色",
+        [nameof(Font)] = "字体",
+        [nameof(FontSize)] = "字号",
+        [nameof(GlobalShortcuts)] = "全局快捷键",
+        [nameof(ToggleMainWindow)] = "打开或隐藏主窗口",
+        [nameof(ShowSelectionResults)] = "显示划词结果",
+        [nameof(Speech)] = "发音",
+        [nameof(LocalData)] = "本地数据",
+        [nameof(Ecdict)] = "ECDICT 离线英汉词典（MIT）",
+        [nameof(ClearAiLookupCache)] = "清除 AI 查词缓存",
+        [nameof(SaveSettings)] = "保存设置",
+        [nameof(Close)] = "关闭",
+        [nameof(Original)] = "原文",
+        [nameof(Translated)] = "译文",
+        [nameof(CopyOriginal)] = "复制原文",
+        [nameof(CopyImage)] = "复制图片",
+        [nameof(CancelCapture)] = "取消截屏",
+        [nameof(Ready)] = "就绪",
+        [nameof(NoFileSelected)] = "未选择文件",
+        [nameof(NoOutputFile)] = "尚无输出文件",
+        [nameof(NoDictionaryResult)] = "暂无词典结果",
+        [nameof(NoSemanticResult)] = "暂无语义结果",
+        [nameof(FileNotSelected)] = "尚未选择文件",
+        [nameof(LoadedFromCache)] = "已从本地缓存读取",
+        [nameof(TranslationComplete)] = "翻译完成",
+        [nameof(ReadingOfflineDictionary)] = "正在读取离线词典",
+        [nameof(ReadingOfflineDictionaryEllipsis)] = "正在读取离线词典…",
+        [nameof(AiAnalyzing)] = "AI 正在分析…",
+        [nameof(AiTranslating)] = "AI 正在翻译…",
+        [nameof(OfflineDictionaryUnavailable)] = "离线词典不可用：{0}",
+        [nameof(OfflineDictionaryShown)] = "离线词典已显示，AI 正在分析",
+        [nameof(NoLookupResult)] = "未找到查询结果。",
+        [nameof(AiLookupUnavailable)] = "AI 查词不可用：{0}",
+        [nameof(AiLookupUnavailableShort)] = "AI 查词不可用。",
+        [nameof(LookupComplete)] = "查词完成",
+        [nameof(PartialResults)] = "已显示可用的部分结果",
+        [nameof(FileTranslatedUnits)] = "已翻译 {0} 个文本单元",
+        [nameof(FileTranslationComplete)] = "文件翻译完成",
+        [nameof(Canceled)] = "已取消",
+        [nameof(FileTranslationCanceled)] = "文件翻译已取消；未完成的副本可能保留在源目录。",
+        [nameof(TranslationFailed)] = "翻译失败",
+        [nameof(Processing)] = "处理中",
+        [nameof(NoSelectedText)] = "当前程序没有可复制的选中文本。",
+        [nameof(NoOutputToOpen)] = "尚无可打开的输出文件。",
+        [nameof(CannotOpenOutput)] = "无法打开输出文件：{0}",
+        [nameof(ConnectionSuccess)] = "连接成功",
+        [nameof(ValidResponse)] = "已收到有效响应：{0}",
+        [nameof(ApiTestSuccessUnsaved)] = "API 连接测试成功（设置未保存）",
+        [nameof(ConnectionFailed)] = "连接失败",
+        [nameof(ProfileRestored)] = "已恢复 {0} 的配置；点击保存后才会生效。",
+        [nameof(SaveReasoningFailed)] = "保存思考强度失败：{0}",
+        [nameof(CacheCleared)] = "AI 查词缓存已清除",
+        [nameof(ReadSettingsFailed)] = "读取设置失败：{0}",
+        [nameof(SettingsSaved)] = "设置已保存",
+        [nameof(DuplicateHotkeys)] = "四个全局快捷键不能重复。",
+        [nameof(SaveContextFailed)] = "保存行业/语境失败：{0}",
+        [nameof(SaveLanguageFailed)] = "保存语言选项失败：{0}",
+        [nameof(RecognizingText)] = "正在识别文字…",
+        [nameof(NoTextRecognized)] = "选区中未识别到文字。",
+        [nameof(CopyImageFailed)] = "复制图片失败：{0}",
+        [nameof(QuickWindowHookFailed)] = "无法监听划词窗口按键消息。",
+        [nameof(DictionaryNoEntry)] = "离线英汉词典仅收录英文词头，或未找到该词条。",
+        [nameof(DictionaryExample)] = "例：",
+        [nameof(DictionarySynonyms)] = "同义词：",
+        [nameof(TrayTip)] = "AITranslator - 点击显示主窗口",
+        [nameof(Exit)] = "退出",
+        [nameof(AutoReasoning)] = "自动（服务默认）",
+        [nameof(ReasoningOff)] = "关闭（非思考模式）",
+        [nameof(ReasoningLow)] = "低",
+        [nameof(ReasoningMedium)] = "中",
+        [nameof(ReasoningHigh)] = "高",
+        [nameof(ReasoningVeryHigh)] = "很高",
+        [nameof(ReasoningMaximum)] = "最大"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> TraditionalChinese = new Dictionary<string, string>
+    {
+        [nameof(NavTranslation)] = "翻譯",
+        [nameof(NavFileTranslation)] = "檔案翻譯",
+        [nameof(SourceLanguage)] = "原文語言",
+        [nameof(SwapLanguages)] = "交換語言",
+        [nameof(TargetLanguage)] = "譯文語言",
+        [nameof(IndustryContext)] = "行業/語境",
+        [nameof(General)] = "通用",
+        [nameof(Translation)] = "翻譯",
+        [nameof(CaptureTranslation)] = "螢幕擷取翻譯",
+        [nameof(ReasoningEffort)] = "思考強度",
+        [nameof(InputPlaceholder)] = "輸入單字或文字",
+        [nameof(OfflineEnglishChineseDictionary)] = "離線英漢詞典",
+        [nameof(OfflineDictionary)] = "離線詞典",
+        [nameof(PronounceIpa)] = "按 IPA 發音",
+        [nameof(AiLookup)] = "AI 查詞",
+        [nameof(AiResult)] = "AI 結果",
+        [nameof(Pronounce)] = "發音",
+        [nameof(CopyResult)] = "複製結果",
+        [nameof(TranslationResult)] = "翻譯結果",
+        [nameof(SpeakTranslation)] = "朗讀譯文",
+        [nameof(CopyTranslation)] = "複製譯文",
+        [nameof(ChooseFile)] = "選擇檔案",
+        [nameof(Cancel)] = "取消",
+        [nameof(TranslateFile)] = "翻譯檔案",
+        [nameof(ShowInFolder)] = "在資料夾中顯示",
+        [nameof(OpenOutputFile)] = "開啟輸出檔案",
+        [nameof(OpenWithDefaultApp)] = "使用預設應用程式開啟",
+        [nameof(Settings)] = "設定",
+        [nameof(TranslationApi)] = "翻譯 API",
+        [nameof(ServicePreset)] = "服務預設",
+        [nameof(ApiEndpoint)] = "API 位址（支援 /v1 基礎位址）",
+        [nameof(Model)] = "模型",
+        [nameof(ApiKey)] = "API 金鑰（依服務要求）",
+        [nameof(AuthHeader)] = "驗證標頭（依服務要求）",
+        [nameof(AuthHeaderTip)] = "金鑰所在的 HTTP 要求標頭；無驗證服務可留空。",
+        [nameof(ApiKeyPrefix)] = "金鑰前綴（依服務要求）",
+        [nameof(ApiKeyPrefixTip)] = "加在金鑰前的文字；Authorization 常用 Bearer，x-api-key 通常留空。",
+        [nameof(TestConnection)] = "測試連線",
+        [nameof(Appearance)] = "外觀",
+        [nameof(InterfaceLanguage)] = "軟體語言",
+        [nameof(Theme)] = "主題",
+        [nameof(FollowSystem)] = "跟隨系統",
+        [nameof(Light)] = "淺色",
+        [nameof(Dark)] = "深色",
+        [nameof(Font)] = "字型",
+        [nameof(FontSize)] = "字號",
+        [nameof(GlobalShortcuts)] = "全域快速鍵",
+        [nameof(ToggleMainWindow)] = "開啟或隱藏主視窗",
+        [nameof(ShowSelectionResults)] = "顯示劃詞結果",
+        [nameof(Speech)] = "發音",
+        [nameof(LocalData)] = "本機資料",
+        [nameof(Ecdict)] = "ECDICT 離線英漢詞典（MIT）",
+        [nameof(ClearAiLookupCache)] = "清除 AI 查詞快取",
+        [nameof(SaveSettings)] = "儲存設定",
+        [nameof(Close)] = "關閉",
+        [nameof(Original)] = "原文",
+        [nameof(Translated)] = "譯文",
+        [nameof(CopyOriginal)] = "複製原文",
+        [nameof(CopyImage)] = "複製圖片",
+        [nameof(CancelCapture)] = "取消擷取",
+        [nameof(Ready)] = "就緒",
+        [nameof(NoFileSelected)] = "未選擇檔案",
+        [nameof(NoOutputFile)] = "尚無輸出檔案",
+        [nameof(NoDictionaryResult)] = "暫無詞典結果",
+        [nameof(NoSemanticResult)] = "暫無語意結果",
+        [nameof(FileNotSelected)] = "尚未選擇檔案",
+        [nameof(LoadedFromCache)] = "已從本機快取讀取",
+        [nameof(TranslationComplete)] = "翻譯完成",
+        [nameof(ReadingOfflineDictionary)] = "正在讀取離線詞典",
+        [nameof(ReadingOfflineDictionaryEllipsis)] = "正在讀取離線詞典…",
+        [nameof(AiAnalyzing)] = "AI 正在分析…",
+        [nameof(AiTranslating)] = "AI 正在翻譯…",
+        [nameof(OfflineDictionaryUnavailable)] = "離線詞典無法使用：{0}",
+        [nameof(OfflineDictionaryShown)] = "已顯示離線詞典，AI 正在分析",
+        [nameof(NoLookupResult)] = "找不到查詢結果。",
+        [nameof(AiLookupUnavailable)] = "AI 查詞無法使用：{0}",
+        [nameof(AiLookupUnavailableShort)] = "AI 查詞無法使用。",
+        [nameof(LookupComplete)] = "查詞完成",
+        [nameof(PartialResults)] = "已顯示可用的部分結果",
+        [nameof(FileTranslatedUnits)] = "已翻譯 {0} 個文字單元",
+        [nameof(FileTranslationComplete)] = "檔案翻譯完成",
+        [nameof(Canceled)] = "已取消",
+        [nameof(FileTranslationCanceled)] = "檔案翻譯已取消；未完成的副本可能保留在來源目錄。",
+        [nameof(TranslationFailed)] = "翻譯失敗",
+        [nameof(Processing)] = "處理中",
+        [nameof(NoSelectedText)] = "目前程式沒有可複製的選取文字。",
+        [nameof(NoOutputToOpen)] = "尚無可開啟的輸出檔案。",
+        [nameof(CannotOpenOutput)] = "無法開啟輸出檔案：{0}",
+        [nameof(ConnectionSuccess)] = "連線成功",
+        [nameof(ValidResponse)] = "已收到有效回應：{0}",
+        [nameof(ApiTestSuccessUnsaved)] = "API 連線測試成功（設定尚未儲存）",
+        [nameof(ConnectionFailed)] = "連線失敗",
+        [nameof(ProfileRestored)] = "已還原 {0} 的設定；按一下儲存後才會生效。",
+        [nameof(SaveReasoningFailed)] = "儲存思考強度失敗：{0}",
+        [nameof(CacheCleared)] = "AI 查詞快取已清除",
+        [nameof(ReadSettingsFailed)] = "讀取設定失敗：{0}",
+        [nameof(SettingsSaved)] = "設定已儲存",
+        [nameof(DuplicateHotkeys)] = "四個全域快速鍵不能重複。",
+        [nameof(SaveContextFailed)] = "儲存行業/語境失敗：{0}",
+        [nameof(SaveLanguageFailed)] = "儲存語言選項失敗：{0}",
+        [nameof(RecognizingText)] = "正在辨識文字…",
+        [nameof(NoTextRecognized)] = "選取範圍中未辨識到文字。",
+        [nameof(CopyImageFailed)] = "複製圖片失敗：{0}",
+        [nameof(QuickWindowHookFailed)] = "無法監聽劃詞視窗按鍵訊息。",
+        [nameof(DictionaryNoEntry)] = "離線英漢詞典僅收錄英文詞頭，或找不到該詞條。",
+        [nameof(DictionaryExample)] = "例：",
+        [nameof(DictionarySynonyms)] = "同義詞：",
+        [nameof(TrayTip)] = "AITranslator - 按一下顯示主視窗",
+        [nameof(Exit)] = "結束",
+        [nameof(AutoReasoning)] = "自動（服務預設）",
+        [nameof(ReasoningOff)] = "關閉（非思考模式）",
+        [nameof(ReasoningLow)] = "低",
+        [nameof(ReasoningMedium)] = "中",
+        [nameof(ReasoningHigh)] = "高",
+        [nameof(ReasoningVeryHigh)] = "很高",
+        [nameof(ReasoningMaximum)] = "最大"
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> English = new Dictionary<string, string>
+    {
+        [nameof(NavTranslation)] = "Translate",
+        [nameof(NavFileTranslation)] = "File translation",
+        [nameof(SourceLanguage)] = "Source language",
+        [nameof(SwapLanguages)] = "Swap languages",
+        [nameof(TargetLanguage)] = "Target language",
+        [nameof(IndustryContext)] = "Industry/context",
+        [nameof(General)] = "General",
+        [nameof(Translation)] = "Translate",
+        [nameof(CaptureTranslation)] = "Screen translation",
+        [nameof(ReasoningEffort)] = "Reasoning effort",
+        [nameof(InputPlaceholder)] = "Enter a word or text",
+        [nameof(OfflineEnglishChineseDictionary)] = "Offline English-Chinese dictionary",
+        [nameof(OfflineDictionary)] = "Offline dictionary",
+        [nameof(PronounceIpa)] = "Pronounce from IPA",
+        [nameof(AiLookup)] = "AI lookup",
+        [nameof(AiResult)] = "AI result",
+        [nameof(Pronounce)] = "Pronounce",
+        [nameof(CopyResult)] = "Copy result",
+        [nameof(TranslationResult)] = "Translation result",
+        [nameof(SpeakTranslation)] = "Read translation aloud",
+        [nameof(CopyTranslation)] = "Copy translation",
+        [nameof(ChooseFile)] = "Choose file",
+        [nameof(Cancel)] = "Cancel",
+        [nameof(TranslateFile)] = "Translate file",
+        [nameof(ShowInFolder)] = "Show in folder",
+        [nameof(OpenOutputFile)] = "Open output file",
+        [nameof(OpenWithDefaultApp)] = "Open with default app",
+        [nameof(Settings)] = "Settings",
+        [nameof(TranslationApi)] = "Translation API",
+        [nameof(ServicePreset)] = "Service preset",
+        [nameof(ApiEndpoint)] = "API endpoint (base /v1 URL supported)",
+        [nameof(Model)] = "Model",
+        [nameof(ApiKey)] = "API key (as required by service)",
+        [nameof(AuthHeader)] = "Authentication header",
+        [nameof(AuthHeaderTip)] = "HTTP request header containing the key; leave blank for services without authentication.",
+        [nameof(ApiKeyPrefix)] = "Key prefix",
+        [nameof(ApiKeyPrefixTip)] = "Text before the key; Authorization commonly uses Bearer, while x-api-key is usually blank.",
+        [nameof(TestConnection)] = "Test connection",
+        [nameof(Appearance)] = "Appearance",
+        [nameof(InterfaceLanguage)] = "App language",
+        [nameof(Theme)] = "Theme",
+        [nameof(FollowSystem)] = "Use system setting",
+        [nameof(Light)] = "Light",
+        [nameof(Dark)] = "Dark",
+        [nameof(Font)] = "Font",
+        [nameof(FontSize)] = "Font size",
+        [nameof(GlobalShortcuts)] = "Global shortcuts",
+        [nameof(ToggleMainWindow)] = "Show or hide main window",
+        [nameof(ShowSelectionResults)] = "Show selected-text result",
+        [nameof(Speech)] = "Pronounce",
+        [nameof(LocalData)] = "Local data",
+        [nameof(Ecdict)] = "ECDICT offline English-Chinese dictionary (MIT)",
+        [nameof(ClearAiLookupCache)] = "Clear AI lookup cache",
+        [nameof(SaveSettings)] = "Save settings",
+        [nameof(Close)] = "Close",
+        [nameof(Original)] = "Original",
+        [nameof(Translated)] = "Translation",
+        [nameof(CopyOriginal)] = "Copy original",
+        [nameof(CopyImage)] = "Copy image",
+        [nameof(CancelCapture)] = "Cancel capture",
+        [nameof(Ready)] = "Ready",
+        [nameof(NoFileSelected)] = "No file selected",
+        [nameof(NoOutputFile)] = "No output file yet",
+        [nameof(NoDictionaryResult)] = "No dictionary result",
+        [nameof(NoSemanticResult)] = "No semantic result",
+        [nameof(FileNotSelected)] = "No file selected",
+        [nameof(LoadedFromCache)] = "Loaded from local cache",
+        [nameof(TranslationComplete)] = "Translation complete",
+        [nameof(ReadingOfflineDictionary)] = "Reading offline dictionary",
+        [nameof(ReadingOfflineDictionaryEllipsis)] = "Reading offline dictionary...",
+        [nameof(AiAnalyzing)] = "AI is analyzing...",
+        [nameof(AiTranslating)] = "AI is translating...",
+        [nameof(OfflineDictionaryUnavailable)] = "Offline dictionary unavailable: {0}",
+        [nameof(OfflineDictionaryShown)] = "Offline dictionary shown; AI is analyzing",
+        [nameof(NoLookupResult)] = "No lookup result was found.",
+        [nameof(AiLookupUnavailable)] = "AI lookup unavailable: {0}",
+        [nameof(AiLookupUnavailableShort)] = "AI lookup unavailable.",
+        [nameof(LookupComplete)] = "Lookup complete",
+        [nameof(PartialResults)] = "Showing the available partial results",
+        [nameof(FileTranslatedUnits)] = "Translated {0} text units",
+        [nameof(FileTranslationComplete)] = "File translation complete",
+        [nameof(Canceled)] = "Canceled",
+        [nameof(FileTranslationCanceled)] = "File translation canceled; an incomplete copy may remain beside the source file.",
+        [nameof(TranslationFailed)] = "Translation failed",
+        [nameof(Processing)] = "Processing",
+        [nameof(NoSelectedText)] = "The current app has no selected text that can be copied.",
+        [nameof(NoOutputToOpen)] = "There is no output file to open.",
+        [nameof(CannotOpenOutput)] = "Could not open the output file: {0}",
+        [nameof(ConnectionSuccess)] = "Connection successful",
+        [nameof(ValidResponse)] = "Received a valid response: {0}",
+        [nameof(ApiTestSuccessUnsaved)] = "API connection test succeeded (settings not saved)",
+        [nameof(ConnectionFailed)] = "Connection failed",
+        [nameof(ProfileRestored)] = "Restored the {0} profile; save settings to apply it.",
+        [nameof(SaveReasoningFailed)] = "Could not save reasoning effort: {0}",
+        [nameof(CacheCleared)] = "AI lookup cache cleared",
+        [nameof(ReadSettingsFailed)] = "Could not load settings: {0}",
+        [nameof(SettingsSaved)] = "Settings saved",
+        [nameof(DuplicateHotkeys)] = "The four global shortcuts must be unique.",
+        [nameof(SaveContextFailed)] = "Could not save industry/context: {0}",
+        [nameof(SaveLanguageFailed)] = "Could not save language options: {0}",
+        [nameof(RecognizingText)] = "Recognizing text...",
+        [nameof(NoTextRecognized)] = "No text was recognized in the selected area.",
+        [nameof(CopyImageFailed)] = "Could not copy image: {0}",
+        [nameof(QuickWindowHookFailed)] = "Could not monitor keyboard messages for the selected-text window.",
+        [nameof(DictionaryNoEntry)] = "The offline English-Chinese dictionary contains English headwords only, or no entry was found.",
+        [nameof(DictionaryExample)] = "Example: ",
+        [nameof(DictionarySynonyms)] = "Synonyms: ",
+        [nameof(TrayTip)] = "AITranslator - click to show the main window",
+        [nameof(Exit)] = "Exit",
+        [nameof(AutoReasoning)] = "Auto (service default)",
+        [nameof(ReasoningOff)] = "Off (non-reasoning mode)",
+        [nameof(ReasoningLow)] = "Low",
+        [nameof(ReasoningMedium)] = "Medium",
+        [nameof(ReasoningHigh)] = "High",
+        [nameof(ReasoningVeryHigh)] = "Very high",
+        [nameof(ReasoningMaximum)] = "Maximum"
+    };
+
+    public LocalizationService(string language)
+    {
+        CurrentLanguage = LanguageCatalog.NormalizeInterfaceLanguage(language);
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public event EventHandler? LanguageChanged;
+
+    public string CurrentLanguage { get; private set; }
+
+    public void SetLanguage(string language)
+    {
+        var normalized = LanguageCatalog.NormalizeInterfaceLanguage(language);
+        if (string.Equals(CurrentLanguage, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        CurrentLanguage = normalized;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
+        LanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public string Get(string key)
+    {
+        var values = CurrentLanguage switch
+        {
+            "zh-TW" => TraditionalChinese,
+            "en" => English,
+            _ => SimplifiedChinese
+        };
+        return values.TryGetValue(key, out var value) ? value : SimplifiedChinese.GetValueOrDefault(key, key);
+    }
+
+    public string Format(string key, params object?[] arguments) =>
+        string.Format(CultureInfo.GetCultureInfo(CurrentLanguage), Get(key), arguments);
+
+    private string Value([CallerMemberName] string key = "") => Get(key);
+
+    public string NavTranslation => Value();
+    public string NavFileTranslation => Value();
+    public string SourceLanguage => Value();
+    public string SwapLanguages => Value();
+    public string TargetLanguage => Value();
+    public string IndustryContext => Value();
+    public string General => Value();
+    public string Translation => Value();
+    public string CaptureTranslation => Value();
+    public string ReasoningEffort => Value();
+    public string InputPlaceholder => Value();
+    public string OfflineEnglishChineseDictionary => Value();
+    public string OfflineDictionary => Value();
+    public string PronounceIpa => Value();
+    public string AiLookup => Value();
+    public string AiResult => Value();
+    public string Pronounce => Value();
+    public string CopyResult => Value();
+    public string TranslationResult => Value();
+    public string SpeakTranslation => Value();
+    public string CopyTranslation => Value();
+    public string ChooseFile => Value();
+    public string Cancel => Value();
+    public string TranslateFile => Value();
+    public string ShowInFolder => Value();
+    public string OpenOutputFile => Value();
+    public string OpenWithDefaultApp => Value();
+    public string Settings => Value();
+    public string TranslationApi => Value();
+    public string ServicePreset => Value();
+    public string ApiEndpoint => Value();
+    public string Model => Value();
+    public string ApiKey => Value();
+    public string AuthHeader => Value();
+    public string AuthHeaderTip => Value();
+    public string ApiKeyPrefix => Value();
+    public string ApiKeyPrefixTip => Value();
+    public string TestConnection => Value();
+    public string Appearance => Value();
+    public string InterfaceLanguage => Value();
+    public string Theme => Value();
+    public string FollowSystem => Value();
+    public string Light => Value();
+    public string Dark => Value();
+    public string Font => Value();
+    public string FontSize => Value();
+    public string GlobalShortcuts => Value();
+    public string ToggleMainWindow => Value();
+    public string ShowSelectionResults => Value();
+    public string Speech => Value();
+    public string LocalData => Value();
+    public string Ecdict => Value();
+    public string ClearAiLookupCache => Value();
+    public string SaveSettings => Value();
+    public string Close => Value();
+    public string Original => Value();
+    public string Translated => Value();
+    public string CopyOriginal => Value();
+    public string CopyImage => Value();
+    public string CancelCapture => Value();
+    public string Ready => Value();
+    public string NoFileSelected => Value();
+    public string NoOutputFile => Value();
+    public string NoDictionaryResult => Value();
+    public string NoSemanticResult => Value();
+    public string FileNotSelected => Value();
+    public string LoadedFromCache => Value();
+    public string TranslationComplete => Value();
+    public string ReadingOfflineDictionary => Value();
+    public string ReadingOfflineDictionaryEllipsis => Value();
+    public string AiAnalyzing => Value();
+    public string AiTranslating => Value();
+    public string OfflineDictionaryUnavailable => Value();
+    public string OfflineDictionaryShown => Value();
+    public string NoLookupResult => Value();
+    public string AiLookupUnavailable => Value();
+    public string AiLookupUnavailableShort => Value();
+    public string LookupComplete => Value();
+    public string PartialResults => Value();
+    public string FileTranslatedUnits => Value();
+    public string FileTranslationComplete => Value();
+    public string Canceled => Value();
+    public string FileTranslationCanceled => Value();
+    public string TranslationFailed => Value();
+    public string Processing => Value();
+    public string NoSelectedText => Value();
+    public string NoOutputToOpen => Value();
+    public string CannotOpenOutput => Value();
+    public string ConnectionSuccess => Value();
+    public string ValidResponse => Value();
+    public string ApiTestSuccessUnsaved => Value();
+    public string ConnectionFailed => Value();
+    public string ProfileRestored => Value();
+    public string SaveReasoningFailed => Value();
+    public string CacheCleared => Value();
+    public string ReadSettingsFailed => Value();
+    public string SettingsSaved => Value();
+    public string DuplicateHotkeys => Value();
+    public string SaveContextFailed => Value();
+    public string SaveLanguageFailed => Value();
+    public string RecognizingText => Value();
+    public string NoTextRecognized => Value();
+    public string CopyImageFailed => Value();
+    public string QuickWindowHookFailed => Value();
+    public string DictionaryNoEntry => Value();
+    public string DictionaryExample => Value();
+    public string DictionarySynonyms => Value();
+    public string TrayTip => Value();
+    public string Exit => Value();
+    public string AutoReasoning => Value();
+    public string ReasoningOff => Value();
+    public string ReasoningLow => Value();
+    public string ReasoningMedium => Value();
+    public string ReasoningHigh => Value();
+    public string ReasoningVeryHigh => Value();
+    public string ReasoningMaximum => Value();
+}

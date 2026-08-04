@@ -11,6 +11,7 @@ public sealed class TrayIconService : IDisposable
     private const uint ExitCommandId = 0x1001;
     private const nuint SubclassId = 1;
     private readonly nint _windowHandle;
+    private readonly LocalizationService _localization;
     private readonly Action _activate;
     private readonly Action _exit;
     private readonly NativeMethods.SubclassProcedure _subclassProcedure;
@@ -20,9 +21,10 @@ public sealed class TrayIconService : IDisposable
     private bool _subclassInstalled;
     private bool _disposed;
 
-    public TrayIconService(nint windowHandle, string iconPath, Action activate, Action exit)
+    public TrayIconService(nint windowHandle, string iconPath, LocalizationService localization, Action activate, Action exit)
     {
         _windowHandle = windowHandle;
+        _localization = localization;
         _activate = activate;
         _exit = exit;
         _subclassProcedure = WindowProcedure;
@@ -43,6 +45,7 @@ public sealed class TrayIconService : IDisposable
 
             _subclassInstalled = true;
             AddIcon();
+            _localization.LanguageChanged += Localization_LanguageChanged;
         }
         catch
         {
@@ -70,7 +73,7 @@ public sealed class TrayIconService : IDisposable
         Flags = NativeMethods.NifMessage | NativeMethods.NifIcon | NativeMethods.NifTip | NativeMethods.NifShowTip,
         CallbackMessage = NativeMethods.WmTrayIcon,
         Icon = _iconHandle,
-        Tip = "AITranslator - 点击显示主窗口",
+        Tip = _localization.TrayTip,
         Info = string.Empty,
         InfoTitle = string.Empty
     };
@@ -131,7 +134,7 @@ public sealed class TrayIconService : IDisposable
 
         try
         {
-            if (!NativeMethods.AppendMenu(menu, NativeMethods.MfString, ExitCommandId, "Exit"))
+            if (!NativeMethods.AppendMenu(menu, NativeMethods.MfString, ExitCommandId, _localization.Exit))
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "无法创建托盘退出命令。");
             }
@@ -154,6 +157,7 @@ public sealed class TrayIconService : IDisposable
         }
 
         _disposed = true;
+        _localization.LanguageChanged -= Localization_LanguageChanged;
         if (_iconAdded)
         {
             var data = CreateIconData();
@@ -174,5 +178,16 @@ public sealed class TrayIconService : IDisposable
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private void Localization_LanguageChanged(object? sender, EventArgs e)
+    {
+        if (!_iconAdded)
+        {
+            return;
+        }
+
+        var data = CreateIconData();
+        NativeMethods.ShellNotifyIcon(NativeMethods.NimModify, ref data);
     }
 }

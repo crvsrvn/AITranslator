@@ -5,7 +5,7 @@ namespace AITranslator.Services;
 
 public sealed class TranslationCache
 {
-    public const string AiLookupBucket = "lookup-v3";
+    public const string AiLookupBucket = "lookup-v4";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly string _connectionString;

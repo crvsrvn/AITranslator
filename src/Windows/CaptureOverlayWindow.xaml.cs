@@ -50,6 +50,7 @@ public sealed partial class CaptureOverlayWindow : Window
         _targetLanguage = targetLanguage;
         _settings = services.Settings.Current.Copy();
         InitializeComponent();
+        Root.DataContext = services.Localization;
         Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(Root_PointerPressed), true);
         Root.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(Root_KeyDown), true);
         Root.Loaded += Root_Loaded;
@@ -212,11 +213,11 @@ public sealed partial class CaptureOverlayWindow : Window
         AppearanceHelper.Apply(Root, _settings);
         CopyImageButton.IsEnabled = true;
 
-        ShowStatus("正在识别文字…", true);
+        ShowStatus(_services.Localization.RecognizingText, true);
         _ocrResult = await _services.Ocr.RecognizeLayoutAsync(image, cancellationToken: _cancellation.Token);
         if (_ocrResult.Lines.Count == 0)
         {
-            ShowStatus("选区中未识别到文字。", false);
+            ShowStatus(_services.Localization.NoTextRecognized, false);
             ShowOriginalButton.IsEnabled = false;
             return;
         }
@@ -224,10 +225,9 @@ public sealed partial class CaptureOverlayWindow : Window
         _showingTranslation = false;
         RenderTextLayer();
         CopyOriginalButton.IsEnabled = true;
-        ShowStatus("正在翻译…", true);
-        var targetLanguage = ResolveTargetLanguage(_ocrResult.Text, _targetLanguage);
+        ShowStatus(_services.Localization.AiTranslating, true);
         _translationResult = await _services.Translator.TranslateCaptureAsync(
-            new CaptureTranslationRequest(_ocrResult.Lines.Select(line => line.Text).ToArray(), "auto", targetLanguage), _cancellation.Token);
+            new CaptureTranslationRequest(_ocrResult.Lines.Select(line => line.Text).ToArray(), "auto", _targetLanguage), _cancellation.Token);
 
         _showingTranslation = true;
         RenderTextLayer();
@@ -235,23 +235,6 @@ public sealed partial class CaptureOverlayWindow : Window
         ShowTranslationButton.IsEnabled = false;
         CopyTranslationButton.IsEnabled = true;
         StatusPanel.Visibility = Visibility.Collapsed;
-    }
-
-    private static string ResolveTargetLanguage(string text, string selectedTarget)
-    {
-        var chineseCount = text.Count(character => character is >= '\u3400' and <= '\u9FFF');
-        var latinCount = text.Count(character => character is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
-        if (string.Equals(selectedTarget, "en", StringComparison.OrdinalIgnoreCase) && latinCount > chineseCount)
-        {
-            return "zh-CN";
-        }
-
-        if (selectedTarget.StartsWith("zh", StringComparison.OrdinalIgnoreCase) && chineseCount > latinCount)
-        {
-            return "en";
-        }
-
-        return selectedTarget;
     }
 
     private void RenderTextLayer()
@@ -484,7 +467,7 @@ public sealed partial class CaptureOverlayWindow : Window
         }
         catch (Exception exception)
         {
-            ShowStatus($"复制图片失败：{exception.Message}", false);
+            ShowStatus(_services.Localization.Format(nameof(LocalizationService.CopyImageFailed), exception.Message), false);
         }
         finally
         {

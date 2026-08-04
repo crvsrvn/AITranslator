@@ -15,6 +15,6 @@ public interface ITranslationProvider
     Task<DocumentTranslationResult> TranslateDocumentAsync(DocumentTranslationRequest request, AppSettings settings, string apiKey,
         CancellationToken cancellationToken = default);
 
-    Task<LookupAnalysisResult> LookupAsync(string text, string domain, AppSettings settings, string apiKey,
+    Task<LookupAnalysisResult> LookupAsync(string text, string sourceLanguage, string targetLanguage, string domain, AppSettings settings, string apiKey,
         CancellationToken cancellationToken = default);
 }

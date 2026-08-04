@@ -35,7 +35,8 @@ public sealed class TranslationOrchestrator
         return await _provider.TranslateAsync(request, settings, apiKey, cancellationToken);
     }
 
-    public async Task<LookupAnalysisResult> LookupAsync(string text, string domain, CancellationToken cancellationToken = default)
+    public async Task<LookupAnalysisResult> LookupAsync(string text, string sourceLanguage, string targetLanguage, string domain,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -44,7 +45,9 @@ public sealed class TranslationOrchestrator
 
         var settings = _settingsService.Current.Copy();
         settings.ActiveReasoningEffort = settings.TranslationReasoningEffort;
-        var cacheKey = CreateLookupCacheKey(text, domain, settings, _provider.ProviderId);
+        sourceLanguage = LanguageCatalog.NormalizeTranslationLanguage(sourceLanguage);
+        targetLanguage = LanguageCatalog.NormalizeTranslationLanguage(targetLanguage);
+        var cacheKey = CreateLookupCacheKey(text, sourceLanguage, targetLanguage, domain, settings, _provider.ProviderId);
         var cached = await _cache.GetAsync<LookupAnalysisResult>(TranslationCache.AiLookupBucket, cacheKey, cancellationToken);
         if (cached is not null)
         {
@@ -52,7 +55,7 @@ public sealed class TranslationOrchestrator
         }
 
         var apiKey = await _secretStore.ReadApiKeyAsync(settings.ApiPreset, cancellationToken);
-        var result = await _provider.LookupAsync(text.Trim(), domain, settings, apiKey, cancellationToken);
+        var result = await _provider.LookupAsync(text.Trim(), sourceLanguage, targetLanguage, domain, settings, apiKey, cancellationToken);
         result = _phonetics.CompleteLookup(result);
         await _cache.SetAsync(TranslationCache.AiLookupBucket, cacheKey, result, cancellationToken);
         return result;
@@ -101,10 +104,12 @@ public sealed class TranslationOrchestrator
         return _provider.TranslateAsync(new TranslationRequest("Connection test", "en", "zh-CN"), requestSettings, apiKey, cancellationToken);
     }
 
-    private static string CreateLookupCacheKey(string text, string domain, AppSettings settings, string providerId)
+    private static string CreateLookupCacheKey(string text, string sourceLanguage, string targetLanguage, string domain, AppSettings settings,
+        string providerId)
     {
         var canonical = string.Join('\u001F', providerId, settings.ApiPreset, settings.ApiProtocol, settings.TranslationEndpoint.Trim(),
-            settings.TranslationModel.Trim(), settings.ActiveReasoningEffort, settings.IndustryContext?.Trim() ?? string.Empty, domain, text.Trim());
+            settings.TranslationModel.Trim(), settings.ActiveReasoningEffort, settings.IndustryContext?.Trim() ?? string.Empty,
+            settings.AppLanguage, sourceLanguage, targetLanguage, domain, text.Trim());
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 }
