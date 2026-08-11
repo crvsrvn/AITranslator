@@ -4,7 +4,7 @@ namespace AITranslator.Models;
 
 public sealed record OcrTextLine(string Text, Rect Bounds);
 
-public sealed record OcrCaptureResult(string Text, IReadOnlyList<OcrTextLine> Lines);
+public sealed record OcrCaptureResult(string Text, IReadOnlyList<OcrTextLine> Lines, double? TextAngle = null);
 
 public sealed record CaptureTranslationRequest(
     IReadOnlyList<string> Lines,

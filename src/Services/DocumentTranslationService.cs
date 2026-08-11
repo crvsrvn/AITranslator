@@ -14,16 +14,16 @@ public sealed class DocumentTranslationService
     private readonly TranslationOrchestrator _translator;
     private readonly PdfLayoutTranslationService _pdfTranslator;
 
-    public DocumentTranslationService(TranslationOrchestrator translator)
+    public DocumentTranslationService(TranslationOrchestrator translator, OcrService? ocr = null)
     {
         _translator = translator;
-        _pdfTranslator = new PdfLayoutTranslationService(translator);
+        _pdfTranslator = new PdfLayoutTranslationService(translator, ocr ?? new OcrService());
     }
 
     public static IReadOnlyList<string> SupportedExtensions { get; } = [".pdf", ".docx", ".pptx", ".xlsx"];
 
     public async Task<FileTranslationReport> TranslateAsync(string sourcePath, string sourceLanguage, string targetLanguage, string domain,
-        IProgress<FileTranslationProgress>? progress = null, CancellationToken cancellationToken = default)
+        IProgress<FileTranslationProgress>? progress = null, CancellationToken cancellationToken = default, bool translateImages = false)
     {
         if (!File.Exists(sourcePath))
         {
@@ -44,7 +44,7 @@ public sealed class DocumentTranslationService
             ".docx" => await TranslateWordAsync(sourcePath, sourceLanguage, targetLanguage, domain, progress, cancellationToken),
             ".pptx" => await TranslatePresentationAsync(sourcePath, sourceLanguage, targetLanguage, domain, progress, cancellationToken),
             ".xlsx" => await TranslateWorkbookAsync(sourcePath, sourceLanguage, targetLanguage, domain, progress, cancellationToken),
-            ".pdf" => await TranslatePdfAsync(sourcePath, sourceLanguage, targetLanguage, domain, progress, cancellationToken),
+            ".pdf" => await TranslatePdfAsync(sourcePath, sourceLanguage, targetLanguage, domain, translateImages, progress, cancellationToken),
             _ => throw new NotSupportedException()
         };
 
@@ -193,11 +193,11 @@ public sealed class DocumentTranslationService
     }
 
     private async Task<FileTranslationReport> TranslatePdfAsync(string sourcePath, string sourceLanguage, string targetLanguage, string domain,
-        IProgress<FileTranslationProgress>? progress, CancellationToken cancellationToken)
+        bool translateImages, IProgress<FileTranslationProgress>? progress, CancellationToken cancellationToken)
     {
         var outputPath = CreateOutputPath(sourcePath, ".pdf");
         var translatedLineCount = await _pdfTranslator.TranslateAsync(sourcePath, outputPath, sourceLanguage, targetLanguage, domain,
-            progress, cancellationToken);
+            translateImages, progress, cancellationToken);
         return new FileTranslationReport(sourcePath, outputPath, translatedLineCount);
     }
 

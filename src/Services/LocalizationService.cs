@@ -19,6 +19,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(Translation)] = "翻译",
         [nameof(CaptureTranslation)] = "截屏翻译",
         [nameof(ReasoningEffort)] = "思考强度",
+        [nameof(TranslateImages)] = "翻译图像",
         [nameof(InputPlaceholder)] = "输入单词或文本",
         [nameof(OfflineEnglishChineseDictionary)] = "离线英汉词典",
         [nameof(OfflineDictionary)] = "离线词典",
@@ -139,6 +140,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(Translation)] = "翻譯",
         [nameof(CaptureTranslation)] = "螢幕擷取翻譯",
         [nameof(ReasoningEffort)] = "思考強度",
+        [nameof(TranslateImages)] = "翻譯圖像",
         [nameof(InputPlaceholder)] = "輸入單字或文字",
         [nameof(OfflineEnglishChineseDictionary)] = "離線英漢詞典",
         [nameof(OfflineDictionary)] = "離線詞典",
@@ -259,6 +261,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(Translation)] = "Translate",
         [nameof(CaptureTranslation)] = "Screen translation",
         [nameof(ReasoningEffort)] = "Reasoning effort",
+        [nameof(TranslateImages)] = "Translate images",
         [nameof(InputPlaceholder)] = "Enter a word or text",
         [nameof(OfflineEnglishChineseDictionary)] = "Offline English-Chinese dictionary",
         [nameof(OfflineDictionary)] = "Offline dictionary",
@@ -417,6 +420,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string Translation => Value();
     public string CaptureTranslation => Value();
     public string ReasoningEffort => Value();
+    public string TranslateImages => Value();
     public string InputPlaceholder => Value();
     public string OfflineEnglishChineseDictionary => Value();
     public string OfflineDictionary => Value();

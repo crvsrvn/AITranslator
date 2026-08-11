@@ -55,6 +55,8 @@ public sealed record LookupAnalysisResult(
 
     public string? ContextDefinition { get; init; }
 
+    public string? ContextExplanationZh { get; init; }
+
     public string? ContextDefinitionPinyin { get; init; }
 
     public string? ContextEnglishText { get; init; }

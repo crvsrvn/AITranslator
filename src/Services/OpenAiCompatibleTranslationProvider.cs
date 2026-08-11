@@ -9,10 +9,10 @@ namespace AITranslator.Services;
 public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
 {
     private const string TranslationSystemPrompt = """
-                                                    You are a precise professional translator. Preserve names, numbers, formatting, code, and terminology.
-                                                    The source and target language requirements in the user message are authoritative. Never choose a different
-                                                    output language. When the effective source and target languages are the same, explain the source meaning in
-                                                    that language in a concise dictionary style instead of copying or paraphrasing it without explanation.
+                                                    You are a precise professional translator. Translate directly from the effective source language into the
+                                                    required target language. Preserve names, numbers, formatting, code, and terminology. The source and target
+                                                    language requirements in the user message are authoritative. Never choose a different output language and
+                                                    never replace a translation with a definition, paraphrase, or explanation.
                                                     Return JSON only, using this schema:
                                                    {
                                                      "translation": "complete translated text",
@@ -21,35 +21,40 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                                                      "internet_meaning": "online, slang, or community meaning or empty string",
                                                      "professional_meanings": ["domain-specific meaning with a short note"]
                                                    }
-                                                   Keep translation general and context-neutral. If an industry/context is configured, also return a complete
-                                                   specialized translation in contextual_translation; otherwise keep it empty. Never replace the general translation
-                                                   with the specialized translation. Never add Markdown fences. When semantic analysis is not requested, keep the
-                                                    three meaning fields empty. contextual_translation must contain only the final specialized translation.
-                                                    Never add a heading, field label, context name, or introductory phrase such as "In this context" or "在该领域中".
+                                                    translation and contextual_translation must both be complete translations in the required target language.
+                                                    Keep translation general and context-neutral. If an industry/context is configured, also return a complete
+                                                    specialized translation in contextual_translation; otherwise keep it empty. Never replace the general translation
+                                                    with the specialized translation. Never add Markdown fences. When semantic analysis is not requested, keep the
+                                                    three meaning fields empty. contextual_translation must contain only the final specialized translation, never an
+                                                    explanation of the source or translated text. Never add a heading, field label, context name, or introductory phrase
+                                                    such as "In this context" or "在该领域中".
                                                    """;
 
     private const string LookupSystemPrompt = """
-                                               You are a precise multilingual lexicographer. Analyze the query as a word or short phrase and obey the source
-                                               and target language requirements in the user message. Never silently replace the requested target language.
-                                               When the effective source and target languages are the same, write a concise dictionary-style explanation in
-                                               that language instead of copying the query.
+                                               You are a precise multilingual translator and lexicographer. Translate the query directly as a word or short phrase
+                                               from the effective source language into the required target language. Obey the source and target language requirements
+                                               in the user message and never silently replace the requested target language.
                                                Return JSON only, using this schema:
                                                {
                                                  "detected_language": "detected BCP-47 language code",
                                                  "target_language": "actual output BCP-47 language code",
                                                  "source_text": "the exact query",
                                                  "source_pinyin": "tone-marked Hanyu Pinyin for a Chinese query, otherwise empty",
-                                                 "definition": "one concise target-language translation or same-language explanation",
+                                                 "definition": "one concise direct translation in the required target language",
                                                  "english_text": "English headword or translation when source or target is English, otherwise empty",
                                                  "english_pronunciations": [
                                                    {"label":"US IPA", "ipa":"IPA without slash brackets", "speak_text":"matching English text", "language_code":"en-US"}
                                                  ],
-                                                 "contextual_definition": "one concise target-language definition for the configured industry/context, or empty string"
+                                                 "contextual_definition": "one concise direct industry/context translation in the required target language, or empty string",
+                                                 "contextual_explanation_zh": "one concise Simplified Chinese explanation of the industry/context meaning, or empty string"
                                                }
-                                               Keep definition general, concise, and free of labels, headings, bullets, and line breaks. If an industry/context
-                                               is configured, contextual_definition must be one concise domain-specific sentence in the same target language.
-                                               Begin it directly with the result content; never begin with the context name, a heading, or a field label.
-                                               Otherwise keep contextual_definition empty.
+                                               definition and contextual_definition are translations, not definitions or explanations. Keep definition general,
+                                               concise, and free of labels, headings, bullets, and line breaks. If an industry/context is configured,
+                                               contextual_definition must be a concise context-adapted translation in the same required target language, and
+                                               contextual_explanation_zh must explain that industry/context meaning in concise Simplified Chinese. Otherwise keep
+                                               both contextual fields empty. Never explain English in English or explain a Chinese query's English translation in
+                                               English. Explanatory content belongs only in contextual_explanation_zh. Begin each field directly with its content;
+                                               never begin with the context name, a heading, or a field label.
                                                For a Chinese query, source_pinyin must contain tone-marked Hanyu Pinyin. Do not add pinyin to Chinese
                                                definitions or explanations. Every English headword or general English translation must have IPA.
                                                Never add Markdown fences.
@@ -439,7 +444,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         return $"""
                 Source language requirement: {sourceRequirement}
                 Target language requirement: {targetRequirement}
-                Same-language rule: if the effective source and target languages are the same, explain the source meaning in the target language in a concise dictionary style; do not copy the source unchanged.
+                Direct-translation rule: translate the source content directly into the effective target language. Never replace the translation with a definition or explanation.
                 """;
     }
 
@@ -669,6 +674,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
             {
                 ContextName = NullWhenEmpty(context),
                 ContextDefinition = NullWhenEmpty(ReadString(root, "contextual_definition")),
+                ContextExplanationZh = NullWhenEmpty(ReadString(root, "contextual_explanation_zh")),
                 ContextEnglishText = NullWhenEmpty(ReadString(root, "contextual_english_text")),
                 ContextEnglishPronunciations = ReadPronunciations(root, "contextual_english_pronunciations")
             };

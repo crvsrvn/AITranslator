@@ -423,6 +423,13 @@
                                 AutomationProperties.AutomationId="FileReasoningPanel"
                                 Orientation="Horizontal"
                                 Spacing="8">
+                                <CheckBox
+                                    x:Name="TranslateImagesCheckBox"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.AutomationId="TranslateImagesCheckBox"
+                                    Content="{Binding Localization.TranslateImages}"
+                                    IsChecked="{Binding TranslateImages, Mode=TwoWay}"
+                                    IsEnabled="{Binding CanTranslateImages}" />
                                 <TextBlock VerticalAlignment="Center" Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="FileReasoningEffortComboBox"

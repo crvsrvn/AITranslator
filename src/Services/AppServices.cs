@@ -62,8 +62,8 @@ public sealed class AppServices : IDisposable
         var services = new AppServices(httpClient, paths, settings, localization, secrets, cache, phonetics, new OpenDictionaryService(paths, phonetics),
             translator, new SpeechService());
 
-        services.Documents = new DocumentTranslationService(translator);
         services.Ocr = new OcrService();
+        services.Documents = new DocumentTranslationService(translator, services.Ocr);
         return services;
     }
 

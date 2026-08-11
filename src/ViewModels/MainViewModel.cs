@@ -51,6 +51,9 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasOutputFile => File.Exists(FileOutputPath);
 
+    public bool CanTranslateImages => !IsFileTranslating &&
+                                      string.Equals(Path.GetExtension(SelectedFilePath), ".pdf", StringComparison.OrdinalIgnoreCase);
+
     [ObservableProperty] [NotifyCanExecuteChangedFor(nameof(SmartTranslateCommand))]
     private string _inputText = string.Empty;
 
@@ -79,6 +82,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _fileProgress;
 
     [ObservableProperty] private string _fileProgressText = string.Empty;
+
+    private bool _translateImages;
+
+    public bool TranslateImages
+    {
+        get => _translateImages;
+        set => SetProperty(ref _translateImages, value);
+    }
 
     [ObservableProperty] private bool _isBusy;
 
@@ -248,7 +259,7 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var report = await _services.Documents.TranslateAsync(SelectedFilePath, SelectedSourceLanguage.Code, SelectedTargetLanguage.Code,
-                "general", progress, _fileTranslationCancellation.Token);
+                "general", progress, _fileTranslationCancellation.Token, translateImages: TranslateImages);
             FileOutputPath = report.OutputPath;
             FileProgressText = Localization.Format(nameof(LocalizationService.FileTranslatedUnits), report.TranslatedUnitCount);
             StatusText = Localization.FileTranslationComplete;
@@ -292,9 +303,17 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedFilePathChanged(string value)
     {
+        if (!string.Equals(Path.GetExtension(value), ".pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            TranslateImages = false;
+        }
+
         OnPropertyChanged(nameof(SelectedFileDisplayText));
+        OnPropertyChanged(nameof(CanTranslateImages));
         StartFileTranslationCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsFileTranslatingChanged(bool value) => OnPropertyChanged(nameof(CanTranslateImages));
 
     partial void OnFileOutputPathChanged(string value)
     {

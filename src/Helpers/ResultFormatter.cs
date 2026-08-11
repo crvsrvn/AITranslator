@@ -18,7 +18,7 @@ public static class ResultFormatter
         return string.IsNullOrWhiteSpace(contextualResult) ||
                string.Equals(generalResult, contextualResult, StringComparison.Ordinal)
             ? generalResult
-            : $"{generalResult}{Environment.NewLine}{contextualResult}";
+            : $"{generalResult}{Environment.NewLine}{Environment.NewLine}{contextualResult}";
     }
 
     public static string FormatDictionary(DictionaryEntry? entry, LocalizationService localization)
@@ -114,17 +114,23 @@ public static class ResultFormatter
             return generalResult;
         }
 
-        var contextualSource = result.ContextDefinition;
-        if (string.IsNullOrWhiteSpace(contextualSource) && result.ProfessionalMeanings.Count > 0)
+        var contextualResult = NormalizeContextLookupLine(result.ContextDefinition ?? string.Empty, result.ContextName);
+        if (string.IsNullOrWhiteSpace(contextualResult))
         {
-            contextualSource = result.ProfessionalMeanings[0];
+            return generalResult;
         }
 
-        var contextualResult = NormalizeContextLookupLine(contextualSource ?? string.Empty, result.ContextName);
-        return string.IsNullOrWhiteSpace(contextualResult) ||
-               string.Equals(generalResult, contextualResult, StringComparison.Ordinal)
-            ? generalResult
-            : $"{generalResult}{Environment.NewLine}{contextualResult}";
+        var contextualExplanation = NormalizeLookupLine(result.ContextExplanationZh ?? string.Empty);
+        if (string.Equals(generalResult, contextualResult, StringComparison.Ordinal) &&
+            string.IsNullOrWhiteSpace(contextualExplanation))
+        {
+            return generalResult;
+        }
+
+        var contextualBlock = string.IsNullOrWhiteSpace(contextualExplanation)
+            ? contextualResult
+            : $"{contextualResult}{Environment.NewLine}{contextualExplanation}";
+        return $"{generalResult}{Environment.NewLine}{Environment.NewLine}{contextualBlock}";
     }
 
     private static bool HasContextTranslation(TranslationResult result) =>

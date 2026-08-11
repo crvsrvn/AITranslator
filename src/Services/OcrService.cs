@@ -107,6 +107,6 @@ public sealed class OcrService
             lines.Add(new OcrTextLine(text, new global::Windows.Foundation.Rect(left, top, right - left, bottom - top)));
         }
 
-        return new OcrCaptureResult(string.Join(Environment.NewLine, lines.Select(line => line.Text)), lines);
+        return new OcrCaptureResult(string.Join(Environment.NewLine, lines.Select(line => line.Text)), lines, result.TextAngle);
     }
 }

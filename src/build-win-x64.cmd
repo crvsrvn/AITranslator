@@ -439,11 +439,6 @@ function Complete-Build([string] $message, [string] $publishedPath)
     {
         Write-Host "Published: $publishedPath"
     }
-
-    if (-not $NoPause)
-    {
-        $null = Read-Host "Press Enter to exit"
-    }
 }
 
 function Stop-AITranslator
@@ -947,10 +942,5 @@ catch
     Write-Host "[FAILED] $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "Local data backup: $backupDirectory"
     Write-Host "Publish staging: $stagingDirectory"
-    if (-not $NoPause)
-    {
-        $null = Read-Host "Press Enter to exit"
-    }
-
     exit 1
 }
