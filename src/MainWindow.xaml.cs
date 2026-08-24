@@ -35,6 +35,8 @@ public sealed partial class MainWindow : Window
     private QuickLookupWindow? _quickLookupWindow;
     private CaptureOverlayWindow? _captureWindow;
     private bool _isWindowVisible = true;
+    private bool _hasActivated;
+    private bool _hideFromSwitchersWhenMinimized;
     private bool _wasMinimized;
     private bool _focusInputOnActivation;
     private bool _subclassInstalled;
@@ -68,6 +70,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        DisableWindowTransitions();
         _subclassProcedure = MainWindowProcedure;
         if (!NativeMethods.SetWindowSubclass(_windowHandle, _subclassProcedure, MainWindowSubclassId, 0))
         {
@@ -93,6 +96,20 @@ public sealed partial class MainWindow : Window
 
     public MainViewModel ViewModel { get; }
 
+    private void DisableWindowTransitions()
+    {
+        var disabled = 1;
+        var result = NativeMethods.DwmSetWindowAttribute(
+            _windowHandle,
+            NativeMethods.DwmwaTransitionsForcedDisabled,
+            ref disabled,
+            sizeof(int));
+        if (result != 0)
+        {
+            Debug.WriteLine($"禁用主窗口过渡动画失败：0x{result:X8}");
+        }
+    }
+
     public void ToggleVisibilityAndFocus()
     {
         var isMinimized = NativeMethods.IsIconic(_windowHandle);
@@ -108,16 +125,29 @@ public sealed partial class MainWindow : Window
 
     public void ShowAndFocus()
     {
-        if (_isClosing)
+        if (_isClosing || _appWindow is null)
         {
             return;
         }
 
         _focusInputOnActivation = true;
-        var command = NativeMethods.IsIconic(_windowHandle) ? NativeMethods.SwRestore : NativeMethods.SwShow;
-        NativeMethods.ShowWindow(_windowHandle, command);
+        _hideFromSwitchersWhenMinimized = false;
+        _appWindow.IsShownInSwitchers = true;
+        if (!_hasActivated)
+        {
+            _hasActivated = true;
+            Activate();
+        }
+        else if (_appWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
+        {
+            presenter.Restore(true);
+        }
+        else
+        {
+            _appWindow.Show();
+        }
+
         NativeMethods.SetForegroundWindow(_windowHandle);
-        Activate();
         _isWindowVisible = true;
         QueuePrimaryInputFocus();
     }
@@ -144,7 +174,26 @@ public sealed partial class MainWindow : Window
 
     private void HideMainWindow()
     {
-        NativeMethods.ShowWindow(_windowHandle, NativeMethods.SwHide);
+        if (_appWindow is not null)
+        {
+            if (_appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                _hideFromSwitchersWhenMinimized = true;
+                presenter.Minimize(false);
+            }
+            else
+            {
+                _appWindow.IsShownInSwitchers = false;
+                _appWindow.Hide();
+            }
+        }
+
+        _isWindowVisible = false;
+    }
+
+    private void HideMainWindowForCapture()
+    {
+        _appWindow?.Hide();
         _isWindowVisible = false;
     }
 
@@ -275,6 +324,13 @@ public sealed partial class MainWindow : Window
 
     private void AppWindow_Changed(AppWindow sender, AppWindowChangedEventArgs args)
     {
+        if (_hideFromSwitchersWhenMinimized &&
+            sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+        {
+            _hideFromSwitchersWhenMinimized = false;
+            sender.IsShownInSwitchers = false;
+        }
+
         if (!args.DidPositionChange || sender.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored })
         {
             return;
@@ -323,7 +379,14 @@ public sealed partial class MainWindow : Window
             UpdateLastRestoredWindowPosition();
         }
 
-        HideMainWindow();
+        // 让系统先完成关闭按钮的本轮输入处理，再让窗口进入托盘状态。
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_isClosing)
+            {
+                HideMainWindow();
+            }
+        });
     }
 
     private void UpdateLastRestoredWindowPosition()
@@ -446,8 +509,7 @@ public sealed partial class MainWindow : Window
             _captureWindow = captureWindow;
             if (restoreMainWindow && !_isClosing)
             {
-                NativeMethods.ShowWindow(_windowHandle, NativeMethods.SwHide);
-                _isWindowVisible = false;
+                HideMainWindowForCapture();
                 _ = NativeMethods.DwmFlush();
             }
 

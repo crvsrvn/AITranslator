@@ -33,9 +33,6 @@ internal static class NativeMethods
     internal const uint ModShift = 0x0004;
     internal const uint ModWin = 0x0008;
     internal const uint ModNoRepeat = 0x4000;
-    internal const int SwHide = 0;
-    internal const int SwShow = 5;
-    internal const int SwRestore = 9;
     internal const uint MonitorDefaultToNull = 0;
     internal const uint MonitorDefaultToPrimary = 1;
     internal const uint SwpNoActivate = 0x0010;
@@ -47,6 +44,7 @@ internal static class NativeMethods
     internal const uint InputKeyboard = 1;
     internal const uint KeyEventKeyUp = 0x0002;
     internal const uint SmtoAbortIfHung = 0x0002;
+    internal const uint DwmwaTransitionsForcedDisabled = 3;
     internal const uint LlkhfInjected = 0x00000010;
     internal const uint NimAdd = 0x00000000;
     internal const uint NimModify = 0x00000001;
@@ -190,10 +188,6 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool ShowWindow(nint windowHandle, int command);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindowVisible(nint windowHandle);
 
     [DllImport("user32.dll")]
@@ -254,6 +248,9 @@ internal static class NativeMethods
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmFlush();
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmSetWindowAttribute(nint windowHandle, uint attribute, ref int attributeValue, uint attributeSize);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     internal static extern int MessageBox(nint windowHandle, string text, string caption, uint type);
