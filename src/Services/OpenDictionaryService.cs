@@ -55,23 +55,29 @@ public sealed class OpenDictionaryService
         _phonetics = phonetics;
     }
 
-    public async Task<DictionaryEntry?> LookupEnglishAsync(string word, CancellationToken cancellationToken = default)
+    public Task<DictionaryEntry?> LookupEnglishAsync(string word, CancellationToken cancellationToken = default)
     {
         var normalizedWord = word.Trim().ToLowerInvariant();
         if (normalizedWord.Length is 0 or > 200 || normalizedWord.Any(character => !char.IsAscii(character) || char.IsControl(character)))
         {
-            return null;
+            return Task.FromResult<DictionaryEntry?>(null);
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        // Microsoft.Data.Sqlite 不支持异步 I/O（其 *Async 方法实际同步执行），放到线程池以免阻塞 UI 线程。
+        return Task.Run(() => LookupEnglish(normalizedWord), cancellationToken);
+    }
 
-        await using var command = connection.CreateCommand();
+    private DictionaryEntry? LookupEnglish(string normalizedWord)
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT word, phonetic, translation FROM entries WHERE word = $word COLLATE NOCASE LIMIT 1;";
         command.Parameters.AddWithValue("$word", normalizedWord);
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
         {
             return null;
         }

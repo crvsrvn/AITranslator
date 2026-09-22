@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using AITranslator.Helpers;
 using AITranslator.Interop;
 using AITranslator.Models;
@@ -14,14 +12,16 @@ using Windows.Graphics;
 
 namespace AITranslator.Windows;
 
+/// <summary>
+/// 划词弹窗。实例常驻复用：热键按下时立即以不抢焦点的方式显示，关闭只是隐藏，避免每次重新构建 XAML 带来的延迟。
+/// </summary>
 public sealed partial class QuickLookupWindow : Window
 {
-    private const nuint SubclassId = 1;
     private readonly AppServices _services;
-    private readonly CancellationTokenSource _lifetime = new();
     private readonly nint _windowHandle;
     private readonly AppWindow _appWindow;
-    private readonly NativeMethods.SubclassProcedure _subclassProcedure;
+    private CancellationTokenSource _session = new();
+    private PopupDismissWatcher? _dismissWatcher;
     private UIElement? _dragSource;
     private uint? _dragPointerId;
     private NativeMethods.NativePoint _dragCursorOrigin;
@@ -32,11 +32,10 @@ public sealed partial class QuickLookupWindow : Window
     private bool _isLookupMode;
     private bool _closeOnDeactivate;
     private bool _closeScheduled;
-    private bool _escapeCloseScheduled;
+    private bool _dismissScheduled;
     private bool _isClosed;
     private bool _isLoaded;
-    private bool _subclassInstalled;
-    private DateTimeOffset _ignoreDeactivationUntil = DateTimeOffset.UtcNow.AddMilliseconds(250);
+    private DateTimeOffset _ignoreDeactivationUntil;
 
     public QuickLookupWindow(AppServices services)
     {
@@ -46,139 +45,200 @@ public sealed partial class QuickLookupWindow : Window
         _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
-        _subclassProcedure = WindowProcedure;
         ApplyAppearance(services.Settings.Current);
         Root.Loaded += Root_Loaded;
         Activated += QuickLookupWindow_Activated;
         Closed += QuickLookupWindow_Closed;
         ConfigureWindow();
-        if (!NativeMethods.SetWindowSubclass(_windowHandle, _subclassProcedure, SubclassId, 0))
-        {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), services.Localization.QuickWindowHookFailed);
-        }
-
-        _subclassInstalled = true;
         services.Localization.LanguageChanged += Localization_LanguageChanged;
+    }
+
+    public bool IsShowing { get; private set; }
+
+    /// <summary>
+    /// 立即在光标旁显示"正在读取选中文本"的弹窗，返回本次会话的取消令牌；再次热键或关闭弹窗会取消该会话。
+    /// </summary>
+    public CancellationToken ShowReadingSelection()
+    {
+        var token = BeginSession();
+        ConfigureResultMode(false);
+        QueryText.Text = string.Empty;
+        DictionaryResultText.Text = string.Empty;
+        AiResultText.Text = _services.Localization.ReadingSelectedTextEllipsis;
+        return token;
+    }
+
+    public void ShowMessage(string message)
+    {
+        AiResultText.Text = message;
+        BusyRing.IsActive = false;
     }
 
     public async Task ShowLookupAsync(string text)
     {
-        var isLookup = ShowLookupShell(text);
-
-        if (!isLookup)
-        {
-            try
-            {
-                var translationSettings = _services.Settings.Current;
-                var result = await _services.Translator.TranslateAsync(
-                    new TranslationRequest(text, translationSettings.TextSourceLanguage, translationSettings.TextTargetLanguage), _lifetime.Token);
-                if (_isClosed)
-                {
-                    return;
-                }
-
-                _spokenText = result.Translation;
-                _spokenLanguage = ResolveSpeechLanguage(result.Translation, translationSettings.TextTargetLanguage);
-                AiResultText.Text = ResultFormatter.FormatTranslation(result);
-            }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-            {
-                return;
-            }
-            catch (Exception exception)
-            {
-                if (!_isClosed)
-                {
-                    AiResultText.Text = exception.Message;
-                }
-            }
-            finally
-            {
-                if (!_isClosed)
-                {
-                    BusyRing.IsActive = false;
-                }
-            }
-
-            return;
-        }
-
-        var dictionaryTask = _services.Dictionary.LookupEnglishAsync(text, _lifetime.Token);
-        var lookupSettings = _services.Settings.Current;
-        var aiTask = _services.Translator.LookupAsync(text, lookupSettings.TextSourceLanguage, lookupSettings.TextTargetLanguage, "general", _lifetime.Token);
-        DictionaryEntry? dictionary = null;
-        LookupAnalysisResult? aiResult = null;
-        Exception? lastError = null;
-        try
-        {
-            dictionary = await dictionaryTask;
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            lastError = exception;
-        }
-
-        if (!_isClosed)
-        {
-            DictionaryResultText.Text = ResultFormatter.FormatDictionary(dictionary, _services.Localization);
-            DictionaryPronunciationItems.ItemsSource = dictionary?.Pronunciations;
-            if (dictionary is not null)
-            {
-                _pronunciations.AddRange(dictionary.Pronunciations);
-            }
-        }
-
-        try
-        {
-            aiResult = await aiTask;
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            lastError = exception;
-        }
-
-        if (_isClosed)
-        {
-            return;
-        }
-
-        _spokenText = aiResult?.Definition ?? text;
-        _spokenLanguage = aiResult?.TargetLanguage ?? lookupSettings.TextTargetLanguage;
-        AiResultText.Text = aiResult is not null
-            ? ResultFormatter.FormatLookupAi(aiResult)
-            : lastError?.Message ?? _services.Localization.AiLookupUnavailableShort;
-        IReadOnlyList<PronunciationOption> aiPronunciations = aiResult is null
-            ? []
-            : PhoneticService.EnumerateLookupPronunciations(aiResult).ToArray();
-        AiPronunciationItems.ItemsSource = aiPronunciations;
-        if (aiResult is not null)
-        {
-            _pronunciations.AddRange(aiPronunciations);
-        }
-
-        BusyRing.IsActive = false;
-    }
-
-    internal bool ShowLookupShell(string text)
-    {
+        // 弹窗已先显示（或在此处显示），翻译/查词全部异步并行进行，各自完成后再回填结果。
+        var token = IsShowing ? _session.Token : BeginSession();
         var isLookup = TranslationInputRouter.ShouldUseLookup(text);
         ConfigureResultMode(isLookup);
         QueryText.Text = text;
         DictionaryResultText.Text = isLookup ? _services.Localization.ReadingOfflineDictionaryEllipsis : string.Empty;
         AiResultText.Text = isLookup ? _services.Localization.AiAnalyzing : _services.Localization.AiTranslating;
+        var settings = _services.Settings.Current;
+        try
+        {
+            if (isLookup)
+            {
+                await Task.WhenAll(ShowDictionaryAsync(text, token), ShowAiLookupAsync(text, settings, token));
+            }
+            else
+            {
+                await ShowTranslationAsync(text, settings, token);
+            }
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                BusyRing.IsActive = false;
+            }
+        }
+    }
+
+    public void Dismiss()
+    {
+        if (!IsShowing)
+        {
+            return;
+        }
+
+        IsShowing = false;
+        _session.Cancel();
+        _dismissWatcher?.Dispose();
+        _dismissWatcher = null;
+        _appWindow.Hide();
+    }
+
+    private CancellationToken BeginSession()
+    {
+        _session.Cancel();
+        _session.Dispose();
+        _session = new CancellationTokenSource();
+        _pronunciations.Clear();
+        _spokenText = string.Empty;
+        _spokenLanguage = "auto";
         DictionaryPronunciationItems.ItemsSource = null;
         AiPronunciationItems.ItemsSource = null;
-        _pronunciations.Clear();
         BusyRing.IsActive = true;
-        MoveNearCursor();
-        Activate();
-        return isLookup;
+        if (!IsShowing)
+        {
+            try
+            {
+                _dismissWatcher = new PopupDismissWatcher(_windowHandle, ScheduleDismiss);
+            }
+            catch (Win32Exception exception)
+            {
+                throw new Win32Exception(exception.NativeErrorCode, _services.Localization.QuickWindowHookFailed);
+            }
+
+            IsShowing = true;
+            _ignoreDeactivationUntil = DateTimeOffset.UtcNow.AddMilliseconds(250);
+            MoveNearCursor();
+            // 不激活窗口：焦点留在目标程序，后续 Ctrl+C 才能发到正确的窗口；Esc/点击关闭由全局钩子负责。
+            _appWindow.Show(false);
+        }
+
+        return _session.Token;
+    }
+
+    private async Task ShowTranslationAsync(string text, AppSettings settings, CancellationToken token)
+    {
+        try
+        {
+            var result = await _services.Translator.TranslateAsync(
+                new TranslationRequest(text, settings.TextSourceLanguage, settings.TextTargetLanguage), token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _spokenText = result.Translation;
+            _spokenLanguage = ResolveSpeechLanguage(result.Translation, settings.TextTargetLanguage);
+            AiResultText.Text = ResultFormatter.FormatTranslation(result);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!token.IsCancellationRequested)
+            {
+                AiResultText.Text = exception.Message;
+            }
+        }
+    }
+
+    private async Task ShowDictionaryAsync(string text, CancellationToken token)
+    {
+        DictionaryEntry? dictionary = null;
+        try
+        {
+            dictionary = await _services.Dictionary.LookupEnglishAsync(text, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            // 离线词典失败时按"未收录"展示，不影响 AI 结果。
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        DictionaryResultText.Text = ResultFormatter.FormatDictionary(dictionary, _services.Localization);
+        DictionaryPronunciationItems.ItemsSource = dictionary?.Pronunciations;
+        if (dictionary is not null)
+        {
+            // 词典音标优先于 AI 音标朗读，无论哪个先返回。
+            _pronunciations.InsertRange(0, dictionary.Pronunciations);
+        }
+    }
+
+    private async Task ShowAiLookupAsync(string text, AppSettings settings, CancellationToken token)
+    {
+        LookupAnalysisResult? aiResult = null;
+        string? errorMessage = null;
+        try
+        {
+            aiResult = await _services.Translator.LookupAsync(text, settings.TextSourceLanguage, settings.TextTargetLanguage, "general", token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _spokenText = aiResult?.Definition ?? text;
+        _spokenLanguage = aiResult?.TargetLanguage ?? settings.TextTargetLanguage;
+        AiResultText.Text = aiResult is not null
+            ? ResultFormatter.FormatLookupAi(aiResult)
+            : errorMessage ?? _services.Localization.AiLookupUnavailableShort;
+        IReadOnlyList<PronunciationOption> aiPronunciations = aiResult is null
+            ? []
+            : PhoneticService.EnumerateLookupPronunciations(aiResult).ToArray();
+        AiPronunciationItems.ItemsSource = aiPronunciations;
+        _pronunciations.AddRange(aiPronunciations);
     }
 
     private void ConfigureResultMode(bool isLookup)
@@ -364,50 +424,28 @@ public sealed partial class QuickLookupWindow : Window
         return false;
     }
 
-    private nint WindowProcedure(nint windowHandle, uint message, nuint wParam, nint lParam, nuint subclassId,
-        nuint referenceData)
+    // 钩子回调中不直接操作窗口，统一排队到调度器后再隐藏。
+    private void ScheduleDismiss()
     {
-        try
-        {
-            if ((message == NativeMethods.WmKeyDown || message == NativeMethods.WmSystemKeyDown) &&
-                wParam == (nuint)global::Windows.System.VirtualKey.Escape)
-            {
-                ScheduleCloseFromEscape();
-                return 0;
-            }
-        }
-        catch (Exception exception)
-        {
-            Debug.WriteLine(exception);
-        }
-
-        return NativeMethods.DefSubclassProc(windowHandle, message, wParam, lParam);
-    }
-
-    private void ScheduleCloseFromEscape()
-    {
-        if (_escapeCloseScheduled)
+        if (_dismissScheduled)
         {
             return;
         }
 
-        _escapeCloseScheduled = true;
+        _dismissScheduled = true;
         if (!DispatcherQueue.TryEnqueue(() =>
             {
-                _escapeCloseScheduled = false;
-                if (!_isClosed)
-                {
-                    Close();
-                }
+                _dismissScheduled = false;
+                Dismiss();
             }))
         {
-            _escapeCloseScheduled = false;
+            _dismissScheduled = false;
         }
     }
 
     private void QuickLookupWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
-        if (_isClosed)
+        if (_isClosed || !IsShowing)
         {
             return;
         }
@@ -438,25 +476,27 @@ public sealed partial class QuickLookupWindow : Window
 
     private async Task CloseAfterDeactivationAsync()
     {
+        var token = _session.Token;
         try
         {
             var delay = _ignoreDeactivationUntil - DateTimeOffset.UtcNow;
             if (delay > TimeSpan.Zero)
             {
-                await Task.Delay(delay, _lifetime.Token);
+                await Task.Delay(delay, token);
             }
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
+            _closeScheduled = false;
             return;
         }
 
         if (!DispatcherQueue.TryEnqueue(() =>
             {
                 _closeScheduled = false;
-                if (!_isClosed && AITranslator.Interop.NativeMethods.GetForegroundWindow() != _windowHandle)
+                if (IsShowing && AITranslator.Interop.NativeMethods.GetForegroundWindow() != _windowHandle)
                 {
-                    Close();
+                    Dismiss();
                 }
             }))
         {
@@ -469,16 +509,13 @@ public sealed partial class QuickLookupWindow : Window
         _isClosed = true;
         _isLoaded = false;
         _closeOnDeactivate = false;
-        if (_subclassInstalled)
-        {
-            NativeMethods.RemoveWindowSubclass(_windowHandle, _subclassProcedure, SubclassId);
-            _subclassInstalled = false;
-        }
-
+        IsShowing = false;
+        _dismissWatcher?.Dispose();
+        _dismissWatcher = null;
         Activated -= QuickLookupWindow_Activated;
         Root.Loaded -= Root_Loaded;
         _services.Localization.LanguageChanged -= Localization_LanguageChanged;
-        _lifetime.Cancel();
+        _session.Cancel();
     }
 
     private void Localization_LanguageChanged(object? sender, EventArgs e)
@@ -530,5 +567,5 @@ public sealed partial class QuickLookupWindow : Window
         return PhoneticService.ContainsChinese(text) ? "zh-CN" : "en-US";
     }
 
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Dismiss();
 }

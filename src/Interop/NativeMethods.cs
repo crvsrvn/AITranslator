@@ -8,6 +8,7 @@ internal static class NativeMethods
     internal const uint WmSize = 0x0005;
     internal const int GwlWndProc = -4;
     internal const int WhKeyboardLl = 13;
+    internal const int WhMouseLl = 14;
     internal const int HcAction = 0;
     internal const uint WmHotkey = 0x0312;
     internal const uint WmInput = 0x00FF;
@@ -18,9 +19,13 @@ internal static class NativeMethods
     internal const uint WmSystemKeyDown = 0x0104;
     internal const uint WmSystemKeyUp = 0x0105;
     internal const uint WmCopy = 0x0301;
+    internal const uint WmLeftButtonDown = 0x0201;
     internal const uint WmLeftButtonUp = 0x0202;
     internal const uint WmLeftButtonDoubleClick = 0x0203;
+    internal const uint WmRightButtonDown = 0x0204;
     internal const uint WmRightButtonUp = 0x0205;
+    internal const uint WmMiddleButtonDown = 0x0207;
+    internal const uint WmXButtonDown = 0x020B;
     internal const uint WmContextMenu = 0x007B;
     internal const uint WmApplyHotkeys = 0x8001;
     internal const uint WmTrayIcon = 0x8002;
@@ -71,6 +76,7 @@ internal static class NativeMethods
     internal const uint VkRightWindows = 0x5C;
     internal const uint VkF12 = 0x7B;
     internal const ushort VkC = 0x43;
+    internal const uint VkEscape = 0x1B;
     internal const uint RidInput = 0x10000003;
     internal const uint RimTypeKeyboard = 1;
     internal const uint RidevRemove = 0x00000001;
@@ -84,10 +90,15 @@ internal static class NativeMethods
 
     internal delegate nint LowLevelKeyboardProcedure(int code, nuint wParam, nint lParam);
 
+    internal delegate nint LowLevelMouseProcedure(int code, nuint wParam, nint lParam);
+
     internal delegate nint SubclassProcedure(nint windowHandle, uint message, nuint wParam, nint lParam, nuint subclassId, nuint referenceData);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
     internal static extern nint SetWindowsHookEx(int hookType, LowLevelKeyboardProcedure procedure, nint module, uint threadId);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    internal static extern nint SetWindowsHookEx(int hookType, LowLevelMouseProcedure procedure, nint module, uint threadId);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -348,6 +359,16 @@ internal static class NativeMethods
     {
         public uint VirtualKey;
         public uint ScanCode;
+        public uint Flags;
+        public uint Time;
+        public nuint ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct LowLevelMouseInput
+    {
+        public NativePoint Point;
+        public uint MouseData;
         public uint Flags;
         public uint Time;
         public nuint ExtraInfo;

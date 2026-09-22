@@ -81,6 +81,18 @@ public sealed partial class MainWindow : Window
         ConfigureWindow();
         ApplyAppearance(services.Settings.Current);
         Root.Loaded += (_, _) => ApplyAppearance(_services.Settings.Current);
+        // 提前构建划词弹窗（隐藏状态），首次热键时无需再解析 XAML；失败则留到热键时重试。
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            try
+            {
+                EnsureQuickLookupWindow();
+            }
+            catch (Exception exception)
+            {
+                Debug.WriteLine(exception);
+            }
+        });
         _industryContextSaveTimer.Tick += IndustryContextSaveTimer_Tick;
         LoadSettingsIntoUiAsync();
 
@@ -444,7 +456,7 @@ public sealed partial class MainWindow : Window
                 _ = ShowSelectedTextAsync();
                 break;
             case HotkeyAction.Speak:
-                if (_quickLookupWindow is not null)
+                if (_quickLookupWindow is { IsShowing: true })
                 {
                     _ = _quickLookupWindow.SpeakCurrentAsync();
                 }
@@ -466,19 +478,54 @@ public sealed partial class MainWindow : Window
 
     private async Task ShowSelectedTextAsync()
     {
+        var targetWindow = NativeMethods.GetForegroundWindow();
+        QuickLookupWindow window;
+        CancellationToken session;
         try
         {
-            var targetWindow = NativeMethods.GetForegroundWindow();
-            var text = await _selectionService.CopySelectedTextAsync(targetWindow);
-            if (string.IsNullOrWhiteSpace(text))
+            // 热键一按下就先弹窗（不抢焦点），随后再去读取选中文本。
+            window = EnsureQuickLookupWindow();
+            session = window.ShowReadingSelection();
+        }
+        catch (Exception exception)
+        {
+            ViewModel.StatusText = exception.Message;
+            return;
+        }
+
+        try
+        {
+            var text = await _selectionService.CopySelectedTextAsync(targetWindow, session);
+            if (session.IsCancellationRequested)
             {
-                ViewModel.StatusText = _services.Localization.NoSelectedText;
                 return;
             }
 
-            _quickLookupWindow?.Close();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                window.ShowMessage(_services.Localization.NoSelectedText);
+                return;
+            }
+
+            await window.ShowLookupAsync(text);
+        }
+        catch (OperationCanceledException) when (session.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!session.IsCancellationRequested)
+            {
+                window.ShowMessage(exception.Message);
+            }
+        }
+    }
+
+    private QuickLookupWindow EnsureQuickLookupWindow()
+    {
+        if (_quickLookupWindow is null)
+        {
             var window = new QuickLookupWindow(_services);
-            _quickLookupWindow = window;
             window.Closed += (_, _) =>
             {
                 if (ReferenceEquals(_quickLookupWindow, window))
@@ -486,12 +533,10 @@ public sealed partial class MainWindow : Window
                     _quickLookupWindow = null;
                 }
             };
-            await window.ShowLookupAsync(text);
+            _quickLookupWindow = window;
         }
-        catch (Exception exception)
-        {
-            ViewModel.StatusText = exception.Message;
-        }
+
+        return _quickLookupWindow;
     }
 
     private async Task CaptureAndTranslateAsync()

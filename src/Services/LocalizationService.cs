@@ -80,6 +80,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(TranslationComplete)] = "翻译完成",
         [nameof(ReadingOfflineDictionary)] = "正在读取离线词典",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "正在读取离线词典…",
+        [nameof(ReadingSelectedTextEllipsis)] = "正在读取选中文本…",
         [nameof(AiAnalyzing)] = "AI 正在分析…",
         [nameof(AiTranslating)] = "AI 正在翻译…",
         [nameof(OfflineDictionaryUnavailable)] = "离线词典不可用：{0}",
@@ -201,6 +202,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(TranslationComplete)] = "翻譯完成",
         [nameof(ReadingOfflineDictionary)] = "正在讀取離線詞典",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "正在讀取離線詞典…",
+        [nameof(ReadingSelectedTextEllipsis)] = "正在讀取選取文字…",
         [nameof(AiAnalyzing)] = "AI 正在分析…",
         [nameof(AiTranslating)] = "AI 正在翻譯…",
         [nameof(OfflineDictionaryUnavailable)] = "離線詞典無法使用：{0}",
@@ -322,6 +324,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(TranslationComplete)] = "Translation complete",
         [nameof(ReadingOfflineDictionary)] = "Reading offline dictionary",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "Reading offline dictionary...",
+        [nameof(ReadingSelectedTextEllipsis)] = "Reading selected text...",
         [nameof(AiAnalyzing)] = "AI is analyzing...",
         [nameof(AiTranslating)] = "AI is translating...",
         [nameof(OfflineDictionaryUnavailable)] = "Offline dictionary unavailable: {0}",
@@ -481,6 +484,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string TranslationComplete => Value();
     public string ReadingOfflineDictionary => Value();
     public string ReadingOfflineDictionaryEllipsis => Value();
+    public string ReadingSelectedTextEllipsis => Value();
     public string AiAnalyzing => Value();
     public string AiTranslating => Value();
     public string OfflineDictionaryUnavailable => Value();

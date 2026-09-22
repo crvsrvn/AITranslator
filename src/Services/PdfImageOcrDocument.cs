@@ -43,11 +43,7 @@ internal sealed class PdfImageOcrDocument
             return [];
         }
 
-        var maximumDimension = Math.Max(pageSize.Width, pageSize.Height);
-        var scale = Math.Min(PreferredRenderScale, OcrEngine.MaxImageDimension / maximumDimension);
-        var renderWidth = (uint)Math.Max(1, Math.Round(pageSize.Width * scale));
-        var renderHeight = (uint)Math.Max(1, Math.Round(pageSize.Height * scale));
-        var pngBytes = await RenderPageAsync(page, renderWidth, renderHeight, cancellationToken);
+        var pngBytes = await RenderScaledPageAsync(page, cancellationToken);
         var recognized = await RecognizeBestOrientationAsync(pngBytes, ResolveOcrLanguage(sourceLanguage), cancellationToken);
         if (recognized.Result.Lines.Count == 0)
         {
@@ -94,6 +90,73 @@ internal sealed class PdfImageOcrDocument
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// 渲染页面并取样各区域内文字的前景色：以区域上下边缘同列像素为局部背景，取对比最高的像素均值。区域内无明显前景时返回 null。
+    /// </summary>
+    public async Task<IReadOnlyList<PdfImageColor?>> SampleForegroundColorsAsync(uint pageIndex, PdfImagePageGeometry geometry,
+        IReadOnlyList<PdfImageBounds> pageRegions, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var page = _document.GetPage(pageIndex);
+        var pageSize = page.Size;
+        var result = new PdfImageColor?[pageRegions.Count];
+        if (pageSize.Width <= 0 || pageSize.Height <= 0 || geometry.CropWidth <= 0 || geometry.CropHeight <= 0)
+        {
+            return result;
+        }
+
+        var pngBytes = await RenderScaledPageAsync(page, cancellationToken);
+        using var imageStream = new MemoryStream(pngBytes, false);
+        using var bitmap = new Bitmap(imageStream);
+        var swapsAxes = NormalizePageRotation(geometry.Rotation) is 90 or 270;
+        var xScale = bitmap.Width / (swapsAxes ? geometry.CropHeight : geometry.CropWidth);
+        var yScale = bitmap.Height / (swapsAxes ? geometry.CropWidth : geometry.CropHeight);
+        for (var index = 0; index < pageRegions.Count; index++)
+        {
+            var display = MapPageToDisplayBounds(pageRegions[index], geometry);
+            var pixelBounds = ClampBounds(display.Left * xScale, display.Top * yScale, display.Width * xScale, display.Height * yScale,
+                bitmap.Width, bitmap.Height);
+            result[index] = pixelBounds.Width < 2 || pixelBounds.Height < 2 ? null : SampleForeground(bitmap, pixelBounds);
+        }
+
+        return result;
+    }
+
+    private static PdfImageColor? SampleForeground(Bitmap bitmap, Rectangle bounds)
+    {
+        const int minimumContrast = 24;
+        var offset = Math.Max(2, bounds.Height / 5);
+        var top = Math.Max(0, bounds.Top - offset);
+        var bottom = Math.Min(bitmap.Height - 1, bounds.Bottom + offset - 1);
+        var step = Math.Max(1, bounds.Height / 32);
+        var candidates = new List<(Color Color, int Contrast)>();
+        for (var x = bounds.Left; x < bounds.Right; x += step)
+        {
+            var backgrounds = new[] { bitmap.GetPixel(x, top), bitmap.GetPixel(x, bottom) };
+            for (var y = bounds.Top; y < bounds.Bottom; y += step)
+            {
+                var color = bitmap.GetPixel(x, y);
+                var contrast = backgrounds.Min(background => Math.Max(Math.Abs(color.R - background.R),
+                    Math.Max(Math.Abs(color.G - background.G), Math.Abs(color.B - background.B))));
+                if (contrast >= minimumContrast)
+                {
+                    candidates.Add((color, contrast));
+                }
+            }
+        }
+
+        if (candidates.Count < 4)
+        {
+            return null;
+        }
+
+        // 抗锯齿边缘像素的对比度总低于字形内部，只取接近最高对比度的像素求均值。
+        var threshold = candidates.Max(candidate => candidate.Contrast) * 0.7;
+        var strongest = candidates.Where(candidate => candidate.Contrast >= threshold).Select(candidate => candidate.Color).ToArray();
+        return new PdfImageColor((byte)Math.Round(strongest.Average(color => color.R)), (byte)Math.Round(strongest.Average(color => color.G)),
+            (byte)Math.Round(strongest.Average(color => color.B)));
     }
 
     private async Task<OrientedOcrResult> RecognizeBestOrientationAsync(byte[] pngBytes, string language,
@@ -192,10 +255,35 @@ internal sealed class PdfImageOcrDocument
         };
     }
 
+    /// <summary><see cref="MapDisplayToPageBounds"/> 的逆映射。</summary>
+    private static PdfImageBounds MapPageToDisplayBounds(PdfImageBounds bounds, PdfImagePageGeometry geometry)
+    {
+        var rotation = NormalizePageRotation(geometry.Rotation);
+        var topOffset = geometry.PageHeight - geometry.CropBottom - geometry.CropHeight;
+        return rotation switch
+        {
+            90 => new PdfImageBounds(topOffset + geometry.CropHeight - bounds.Bottom, bounds.Left - geometry.CropLeft, bounds.Height,
+                bounds.Width),
+            180 => new PdfImageBounds(geometry.CropLeft + geometry.CropWidth - bounds.Right,
+                topOffset + geometry.CropHeight - bounds.Bottom, bounds.Width, bounds.Height),
+            270 => new PdfImageBounds(bounds.Top - topOffset, geometry.CropLeft + geometry.CropWidth - bounds.Right, bounds.Height,
+                bounds.Width),
+            _ => new PdfImageBounds(bounds.Left - geometry.CropLeft, bounds.Top - topOffset, bounds.Width, bounds.Height)
+        };
+    }
+
     private static bool ShouldTranslateImageText(string text)
     {
         var letters = text.Where(char.IsLetter).ToArray();
         return letters.Length > 0 && !(letters.Length == 1 && letters[0] <= '\u007F');
+    }
+
+    private static Task<byte[]> RenderScaledPageAsync(PdfPage page, CancellationToken cancellationToken)
+    {
+        var pageSize = page.Size;
+        var scale = Math.Min(PreferredRenderScale, OcrEngine.MaxImageDimension / Math.Max(pageSize.Width, pageSize.Height));
+        return RenderPageAsync(page, (uint)Math.Max(1, Math.Round(pageSize.Width * scale)),
+            (uint)Math.Max(1, Math.Round(pageSize.Height * scale)), cancellationToken);
     }
 
     private static async Task<byte[]> RenderPageAsync(PdfPage page, uint width, uint height, CancellationToken cancellationToken)

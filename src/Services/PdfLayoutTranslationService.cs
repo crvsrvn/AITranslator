@@ -10,8 +10,10 @@ using PdfSharp.Pdf.IO;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
 using UglyToad.PdfPig.Graphics.Operations;
+using UglyToad.PdfPig.Graphics.Operations.SpecialGraphicsState;
 using UglyToad.PdfPig.Graphics.Operations.TextState;
 using PdfPigDocument = UglyToad.PdfPig.PdfDocument;
+using PdfPigRectangle = UglyToad.PdfPig.Core.PdfRectangle;
 
 namespace AITranslator.Services;
 
@@ -41,20 +43,28 @@ internal sealed class PdfLayoutTranslationService
         }
 
         var imageOcrDocument = translateImages
-            ? await PdfImageOcrDocument.OpenAsync(sourcePath, _ocr, cancellationToken)
+            ? await OpenPageRendererAsync(sourcePath, sourceDocument.NumberOfPages, cancellationToken)
             : null;
-        if (imageOcrDocument is not null && imageOcrDocument.PageCount != sourceDocument.NumberOfPages)
-        {
-            throw new InvalidDataException("PDF 图像渲染器返回的页面数量不一致，无法安全识别图像文字。");
-        }
 
+        var pageRenderer = imageOcrDocument;
         var pagePlans = new List<PdfPagePlan>(sourceDocument.NumberOfPages);
         var requestUnits = new List<DocumentTextUnit>();
         for (var pageIndex = 0; pageIndex < sourceDocument.NumberOfPages; pageIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var sourcePage = sourceDocument.GetPage(pageIndex + 1);
-            var lines = ExtractLines(sourcePage);
+            var outputPage = outputDocument.Pages[pageIndex];
+            var geometry = CreatePageGeometry(outputPage);
+            var pageGraphics = AnalyzePageGraphics(sourcePage.Operations, outputPage);
+            var lines = ResolveTextVisibility(ExtractLines(sourcePage), pageGraphics);
+            if (lines.Any(line => line.ImageOperationIndexes.Count > 0))
+            {
+                // 文字对象本身透明、由图片呈现时，PdfPig 读到的颜色不可信，改为从渲染结果取样。
+                pageRenderer ??= await OpenPageRendererAsync(sourcePath, sourceDocument.NumberOfPages, cancellationToken);
+                lines = await ApplyRenderedColorsAsync(pageRenderer, pageIndex, sourcePage.Height, geometry, lines,
+                    pageGraphics.TransparentTextSequences, cancellationToken);
+            }
+
             var vectorLines = translateImages ? lines.Where(line => line.IsVisible).ToArray() : lines;
             var blocks = CreateBlocks(vectorLines);
             foreach (var line in vectorLines.Where(line => ShouldTranslate(line.Text)))
@@ -68,16 +78,6 @@ internal sealed class PdfLayoutTranslationService
             {
                 progress?.Report(new FileTranslationProgress(0, 0,
                     $"正在识别图像文字（{pageIndex + 1}/{sourceDocument.NumberOfPages}）"));
-                var outputPage = outputDocument.Pages[pageIndex];
-                var mediaBox = outputPage.MediaBoxReadOnly;
-                var cropBox = outputPage.CropBoxReadOnly;
-                if (cropBox.IsZero)
-                {
-                    cropBox = mediaBox;
-                }
-
-                var geometry = new PdfImagePageGeometry(mediaBox.Width, mediaBox.Height, cropBox.X1 - mediaBox.X1,
-                    cropBox.Y1 - mediaBox.Y1, cropBox.Width, cropBox.Height, outputPage.Rotate);
                 var visibleTextRegions = lines.Where(line => line.IsVisible)
                     .Select(line => new PdfImageBounds(line.Left, sourcePage.Height - line.Top, line.Width, line.Height))
                     .Select(bounds => PdfImageOcrDocument.MapDisplayToPageBounds(bounds, geometry)).ToArray();
@@ -111,10 +111,11 @@ internal sealed class PdfLayoutTranslationService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var outputPage = outputDocument.Pages[pagePlan.PageIndex];
-            if (pagePlan.Blocks.Count > 0)
+            var translatedBlocks = pagePlan.Blocks.Where(block => block.Lines.Any(line => line.TranslationId.HasValue)).ToArray();
+            if (translatedBlocks.Length > 0)
             {
-                var replacements = new List<PdfBlockReplacement>(pagePlan.Blocks.Count);
-                foreach (var block in pagePlan.Blocks)
+                var replacements = new List<PdfBlockReplacement>(translatedBlocks.Length);
+                foreach (var block in translatedBlocks)
                 {
                     var translatedLines = block.Lines.Select(line => line.TranslationId is int translationId
                         ? DocumentTextLayout.NormalizeSingleLine(translations[translationId])
@@ -124,7 +125,9 @@ internal sealed class PdfLayoutTranslationService
                     replacements.Add(new PdfBlockReplacement(block.TextSequences, content));
                 }
 
-                ReplacePageTextObjects(outputPage, pagePlan.Operations, replacements, pagePlan.PageIndex + 1);
+                var hiddenOperations = translatedBlocks.SelectMany(block => block.Lines)
+                    .SelectMany(line => line.ImageOperationIndexes).ToHashSet();
+                ReplacePageTextObjects(outputPage, pagePlan.Operations, replacements, hiddenOperations, pagePlan.PageIndex + 1);
             }
 
             if (pagePlan.ImageLines.Count > 0)
@@ -135,6 +138,181 @@ internal sealed class PdfLayoutTranslationService
 
         outputDocument.Save(outputPath);
         return requestUnits.Count;
+    }
+
+    private async Task<PdfImageOcrDocument> OpenPageRendererAsync(string sourcePath, int pageCount, CancellationToken cancellationToken)
+    {
+        var renderer = await PdfImageOcrDocument.OpenAsync(sourcePath, _ocr, cancellationToken);
+        if (renderer.PageCount != pageCount)
+        {
+            throw new InvalidDataException("PDF 图像渲染器返回的页面数量不一致，无法安全处理页面图像。");
+        }
+
+        return renderer;
+    }
+
+    private static PdfImagePageGeometry CreatePageGeometry(PdfPage page)
+    {
+        var mediaBox = page.MediaBoxReadOnly;
+        var cropBox = page.CropBoxReadOnly;
+        if (cropBox.IsZero)
+        {
+            cropBox = mediaBox;
+        }
+
+        return new PdfImagePageGeometry(mediaBox.Width, mediaBox.Height, cropBox.X1 - mediaBox.X1, cropBox.Y1 - mediaBox.Y1,
+            cropBox.Width, cropBox.Height, page.Rotate);
+    }
+
+    /// <summary>
+    /// 遍历页面内容流，找出绘制时没有任何可见笔墨（Tr 3/7 或 ExtGState 透明度为 0）的文字序列，并记录每个图片绘制的位置。
+    /// </summary>
+    private static PdfPageGraphics AnalyzePageGraphics(IReadOnlyList<IGraphicsStateOperation> operations, PdfPage page)
+    {
+        var transparentSequences = new HashSet<int>();
+        var imageDraws = new List<PdfImageDraw>();
+        var stateStack = new Stack<PdfGraphicsState>();
+        var state = PdfGraphicsState.Initial;
+        var textSequence = 1;
+        for (var index = 0; index < operations.Count; index++)
+        {
+            var operation = operations[index];
+            switch (operation)
+            {
+                case ModifyCurrentTransformationMatrix { Value.Length: 6 } cm:
+                    state = state with { Ctm = MultiplyMatrices(cm.Value, state.Ctm) };
+                    break;
+                case SetGraphicsStateParametersFromDictionary gs:
+                    var extGStates = page.Resources.Elements.GetDictionary("/ExtGState");
+                    state = ApplyExtGState(state, extGStates?.Elements.GetDictionary("/" + gs.Name.Data));
+                    break;
+                case SetTextRenderingMode tr:
+                    state = state with { RenderingMode = (int)tr.Mode };
+                    break;
+                case InvokeNamedXObject xObject when IsImageXObject(page, xObject.Name.Data):
+                    imageDraws.Add(new PdfImageDraw(index, TransformUnitSquare(state.Ctm)));
+                    break;
+                case { Operator: "q" }:
+                    stateStack.Push(state);
+                    break;
+                case { Operator: "Q" }:
+                    state = stateStack.Count == 0 ? PdfGraphicsState.Initial : stateStack.Pop();
+                    break;
+            }
+
+            if (IsTextDrawingOperation(operation))
+            {
+                if (!state.PaintsText)
+                {
+                    transparentSequences.Add(textSequence);
+                }
+
+                textSequence++;
+            }
+        }
+
+        return new PdfPageGraphics(transparentSequences, imageDraws);
+    }
+
+    private static PdfGraphicsState ApplyExtGState(PdfGraphicsState state, PdfDictionary? extGState)
+    {
+        if (extGState is null)
+        {
+            return state;
+        }
+
+        return state with
+        {
+            FillAlpha = extGState.Elements.ContainsKey("/ca") ? extGState.Elements.GetReal("/ca") : state.FillAlpha,
+            StrokeAlpha = extGState.Elements.ContainsKey("/CA") ? extGState.Elements.GetReal("/CA") : state.StrokeAlpha
+        };
+    }
+
+    private static bool IsImageXObject(PdfPage page, string name) =>
+        page.Resources.Elements.GetDictionary("/XObject")?.Elements.GetDictionary("/" + name)?.Elements.GetName("/Subtype") == "/Image";
+
+    /// <summary>PDF 矩阵乘法：CTM' = M × CTM（六元素 [a b c d e f]）。</summary>
+    private static double[] MultiplyMatrices(double[] m, double[] ctm) =>
+    [
+        m[0] * ctm[0] + m[1] * ctm[2],
+        m[0] * ctm[1] + m[1] * ctm[3],
+        m[2] * ctm[0] + m[3] * ctm[2],
+        m[2] * ctm[1] + m[3] * ctm[3],
+        m[4] * ctm[0] + m[5] * ctm[2] + ctm[4],
+        m[4] * ctm[1] + m[5] * ctm[3] + ctm[5]
+    ];
+
+    private static PdfPigRectangle TransformUnitSquare(double[] ctm)
+    {
+        var xs = new[] { ctm[4], ctm[0] + ctm[4], ctm[2] + ctm[4], ctm[0] + ctm[2] + ctm[4] };
+        var ys = new[] { ctm[5], ctm[1] + ctm[5], ctm[3] + ctm[5], ctm[1] + ctm[3] + ctm[5] };
+        return new PdfPigRectangle(xs.Min(), ys.Min(), xs.Max(), ys.Max());
+    }
+
+    /// <summary>
+    /// 文字对象透明时，若有一张与其相交且尺寸相近的图片，则该图片就是文字的可见形态（PowerPoint 导出带效果的文字即如此），
+    /// 替换译文时需连同该图片一起隐藏。
+    /// </summary>
+    private static IReadOnlyList<PdfTextLine> ResolveTextVisibility(IReadOnlyList<PdfTextLine> lines, PdfPageGraphics graphics)
+    {
+        var result = new List<PdfTextLine>(lines.Count);
+        foreach (var line in lines)
+        {
+            var transparentSpanCount = line.Spans.Count(span => graphics.TransparentTextSequences.Contains(span.TextSequence));
+            if (line.IsVisible && transparentSpanCount == 0)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            // 一行可由多张图片拼成，图片右侧常留有空白（宽度可达文本框宽度），因此要求：高度接近文字、纵向大部分重叠，
+            // 且横向大部分重叠或起点位于行内、右侧超出不超过两个字号。
+            var unit = Math.Max(line.Height, line.Spans.Max(span => span.FontSize));
+            var imageOperations = graphics.ImageDraws
+                .Where(draw => draw.Bounds.Height <= unit * 2.5 &&
+                               MostlyOverlaps(draw.Bounds.Bottom, draw.Bounds.Top, line.Bottom, line.Top) &&
+                               (MostlyOverlaps(draw.Bounds.Left, draw.Bounds.Right, line.Left, line.Right) ||
+                                (draw.Bounds.Left >= line.Left - unit && draw.Bounds.Left <= line.Right &&
+                                 draw.Bounds.Right <= line.Right + unit * 2)))
+                .Select(draw => draw.OperationIndex).ToArray();
+            var hasOpaqueSpans = line.IsVisible && transparentSpanCount < line.Spans.Count;
+            result.Add(line with { IsVisible = hasOpaqueSpans || imageOperations.Length > 0, ImageOperationIndexes = imageOperations });
+        }
+
+        return result;
+    }
+
+    /// <summary>两段区间的交集至少覆盖较短一段的一半。</summary>
+    private static bool MostlyOverlaps(double firstStart, double firstEnd, double secondStart, double secondEnd)
+    {
+        var overlap = Math.Min(firstEnd, secondEnd) - Math.Max(firstStart, secondStart);
+        return overlap > 0 && overlap >= Math.Min(firstEnd - firstStart, secondEnd - secondStart) * 0.5;
+    }
+
+    private static async Task<IReadOnlyList<PdfTextLine>> ApplyRenderedColorsAsync(PdfImageOcrDocument renderer, int pageIndex,
+        double pageHeight, PdfImagePageGeometry geometry, IReadOnlyList<PdfTextLine> lines, IReadOnlySet<int> transparentTextSequences,
+        CancellationToken cancellationToken)
+    {
+        var targets = lines.Where(line => line.ImageOperationIndexes.Count > 0).ToArray();
+        var regions = targets.Select(line => new PdfImageBounds(line.Left, pageHeight - line.Top, line.Width, line.Height)).ToArray();
+        var colors = await renderer.SampleForegroundColorsAsync((uint)pageIndex, geometry, regions, cancellationToken);
+        var recolored = new Dictionary<PdfTextLine, PdfTextLine>(ReferenceEqualityComparer.Instance);
+        for (var index = 0; index < targets.Length; index++)
+        {
+            if (colors[index] is not { } color)
+            {
+                continue;
+            }
+
+            var rgb = (color.Red / 255d, color.Green / 255d, color.Blue / 255d);
+            recolored[targets[index]] = targets[index] with
+            {
+                Spans = targets[index].Spans
+                    .Select(span => transparentTextSequences.Contains(span.TextSequence) ? span with { Color = rgb } : span).ToArray()
+            };
+        }
+
+        return lines.Select(line => recolored.GetValueOrDefault(line, line)).ToArray();
     }
 
     private async Task<Dictionary<int, string>> TranslateUnitsAsync(IReadOnlyList<DocumentTextUnit> requestUnits, string sourceLanguage,
@@ -484,8 +662,7 @@ internal sealed class PdfLayoutTranslationService
     }
 
     private static void ReplacePageTextObjects(PdfPage page, IReadOnlyList<IGraphicsStateOperation> operations,
-        IReadOnlyList<PdfBlockReplacement> replacements,
-        int pageNumber)
+        IReadOnlyList<PdfBlockReplacement> replacements, IReadOnlySet<int> hiddenOperationIndexes, int pageNumber)
     {
         var replacementSequences = new HashSet<int>();
         var mergedReplacements = MergeOverlappingReplacements(replacements);
@@ -506,8 +683,15 @@ internal sealed class PdfLayoutTranslationService
         var textSequence = 1;
         var invisibleMode = new SetTextRenderingMode(3);
         var invisibleClippingMode = new SetTextRenderingMode(7);
-        foreach (var operation in operations)
+        for (var index = 0; index < operations.Count; index++)
         {
+            var operation = operations[index];
+            if (hiddenOperationIndexes.Contains(index))
+            {
+                // 该图片是被替换文字的可见形态（文字对象本身透明），随原文一起隐藏。
+                continue;
+            }
+
             if (IsTextDrawingOperation(operation))
             {
                 if (replacementSequences.Contains(textSequence))
@@ -717,24 +901,11 @@ internal sealed class PdfLayoutTranslationService
     private static void DrawReplacementBlock(XGraphics graphics, double pageHeight, PdfTextBlock block, IReadOnlyList<string> translatedLines)
     {
         var preparedLines = block.Lines.Select((line, index) => PrepareLine(graphics, line, translatedLines[index])).ToArray();
-        if (preparedLines.Length == 1)
+        // 同一段落内统一缩放，且只缩小不放大：译文较短时保持原字号，避免各行字号参差。
+        var scale = preparedLines.Where(line => line.Width > 0).Select(line => line.Line.Width / line.Width).DefaultIfEmpty(1).Min();
+        foreach (var prepared in preparedLines)
         {
-            var prepared = preparedLines[0];
-            var scale = prepared.Width <= 0 ? 1 : prepared.Line.Width / prepared.Width;
-            DrawPreparedLine(graphics, pageHeight, prepared, Math.Clamp(scale, 0.05, 20), null);
-            return;
-        }
-
-        var blockHeight = Math.Max(1, block.Top - block.Bottom);
-        var naturalHeight = Math.Max(1, preparedLines.Sum(line => line.Height));
-        var scaleFactor = Math.Clamp(blockHeight / naturalHeight, 0.05, 20);
-        var scaledHeights = preparedLines.Select(line => line.Height * scaleFactor).ToArray();
-        var currentTop = block.Top - Math.Max(0, blockHeight - scaledHeights.Sum()) / 2;
-        for (var index = 0; index < preparedLines.Length; index++)
-        {
-            var lineHeight = scaledHeights[index];
-            DrawPreparedLine(graphics, pageHeight, preparedLines[index], scaleFactor, (currentTop - lineHeight, currentTop));
-            currentTop -= lineHeight;
+            DrawPreparedLine(graphics, pageHeight, prepared, Math.Clamp(scale, 0.05, 1));
         }
     }
 
@@ -754,10 +925,10 @@ internal sealed class PdfLayoutTranslationService
             var style = ResolveFontStyle(sourceSpan.FontName);
             var (family, font) = CreatePdfFont(requestedFamily, sourceSpan.FontSize, style);
             var size = graphics.MeasureString(pieces[index], font);
-            spans.Add(new PreparedPdfSpan(pieces[index], family, style, sourceSpan.FontSize, sourceSpan.Color, size.Width, size.Height));
+            spans.Add(new PreparedPdfSpan(pieces[index], family, style, sourceSpan.FontSize, sourceSpan.Color, size.Width));
         }
 
-        return new PreparedPdfLine(line, spans, spans.Sum(span => span.Width), spans.Count == 0 ? line.Height : spans.Max(span => span.Height));
+        return new PreparedPdfLine(line, spans, spans.Sum(span => span.Width));
     }
 
     private static (string Family, XFont Font) CreatePdfFont(string requestedFamily, double size, XFontStyleEx style)
@@ -777,8 +948,7 @@ internal sealed class PdfLayoutTranslationService
         throw new InvalidOperationException($"PDFsharp 无法嵌入字体“{requestedFamily}”或中文回退字体“DengXian”。");
     }
 
-    private static void DrawPreparedLine(XGraphics graphics, double pageHeight, PreparedPdfLine prepared, double scale,
-        (double Bottom, double Top)? bounds)
+    private static void DrawPreparedLine(XGraphics graphics, double pageHeight, PreparedPdfLine prepared, double scale)
     {
         if (prepared.Spans.Count == 0)
         {
@@ -786,12 +956,10 @@ internal sealed class PdfLayoutTranslationService
         }
 
         var line = prepared.Line;
-        var bottom = bounds?.Bottom ?? line.Bottom;
-        var top = bounds?.Top ?? line.Top;
         var width = Math.Max(1, line.Width);
-        var height = Math.Max(1, top - bottom);
+        var height = Math.Max(1, line.Height);
         var centerX = line.Left + width / 2;
-        var centerY = pageHeight - top + height / 2;
+        var centerY = pageHeight - line.Top + height / 2;
         var rotation = line.Orientation switch
         {
             TextOrientation.Rotate90 => 90,
@@ -928,13 +1096,14 @@ internal sealed class PdfLayoutTranslationService
     {
         var color = styleSource.Color.ToRGBValues();
         if (spans.LastOrDefault() is { } previous && string.Equals(previous.FontName, styleSource.FontName, StringComparison.Ordinal) &&
-            Math.Abs(previous.FontSize - styleSource.PointSize) < 0.01 && previous.Color == color)
+            Math.Abs(previous.FontSize - styleSource.PointSize) < 0.01 && previous.Color == color &&
+            previous.TextSequence == styleSource.TextSequence)
         {
             spans[^1] = previous with { Text = previous.Text + text };
             return;
         }
 
-        spans.Add(new PdfTextSpan(text, styleSource.PointSize, styleSource.FontName, color));
+        spans.Add(new PdfTextSpan(text, styleSource.PointSize, styleSource.FontName, color, styleSource.TextSequence));
     }
 
     private static bool NeedsSpace(Word previous, Word current)
@@ -1075,10 +1244,35 @@ internal sealed class PdfLayoutTranslationService
 
         public double Height => Top - Bottom;
 
+        /// <summary>作为该行可见形态的图片绘制操作在页面操作列表中的下标。</summary>
+        public IReadOnlyList<int> ImageOperationIndexes { get; init; } = [];
+
         public int? TranslationId { get; set; }
     }
 
-    private sealed record PdfTextSpan(string Text, double FontSize, string? FontName, (double Red, double Green, double Blue) Color);
+    private sealed record PdfPageGraphics(IReadOnlySet<int> TransparentTextSequences, IReadOnlyList<PdfImageDraw> ImageDraws);
+
+    private sealed record PdfImageDraw(int OperationIndex, PdfPigRectangle Bounds);
+
+    private sealed record PdfGraphicsState(double[] Ctm, double FillAlpha, double StrokeAlpha, int RenderingMode)
+    {
+        public static PdfGraphicsState Initial { get; } = new([1, 0, 0, 1, 0, 0], 1, 1, 0);
+
+        public bool PaintsText => RenderingMode switch
+        {
+            0 or 4 => FillAlpha > 0,
+            1 or 5 => StrokeAlpha > 0,
+            2 or 6 => FillAlpha > 0 || StrokeAlpha > 0,
+            _ => false
+        };
+    }
+
+    private sealed record PdfTextSpan(
+        string Text,
+        double FontSize,
+        string? FontName,
+        (double Red, double Green, double Blue) Color,
+        int TextSequence);
 
     private sealed record PreparedPdfSpan(
         string Text,
@@ -1086,10 +1280,9 @@ internal sealed class PdfLayoutTranslationService
         XFontStyleEx Style,
         double FontSize,
         (double Red, double Green, double Blue) Color,
-        double Width,
-        double Height);
+        double Width);
 
-    private sealed record PreparedPdfLine(PdfTextLine Line, IReadOnlyList<PreparedPdfSpan> Spans, double Width, double Height);
+    private sealed record PreparedPdfLine(PdfTextLine Line, IReadOnlyList<PreparedPdfSpan> Spans, double Width);
 
     private sealed record ImageTextLayout(double FontSize, IReadOnlyList<string> Lines, double LineHeight, bool Fits);
 

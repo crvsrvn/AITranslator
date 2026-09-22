@@ -23,56 +23,63 @@ public sealed class TranslationCache
         }.ToString();
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
-    {
-        await using var connection = await OpenInitializedConnectionAsync(cancellationToken);
-    }
+    // Microsoft.Data.Sqlite 不支持异步 I/O（其 *Async 方法实际同步执行），以下操作统一放到线程池以免阻塞 UI 线程。
+    public Task InitializeAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            using var connection = OpenInitializedConnection();
+        }, cancellationToken);
 
-    public async Task<T?> GetAsync<T>(string bucket, string key, CancellationToken cancellationToken = default)
-    {
-        await using var connection = await OpenInitializedConnectionAsync(cancellationToken);
+    public Task<T?> GetAsync<T>(string bucket, string key, CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            using var connection = OpenInitializedConnection();
 
-        var command = connection.CreateCommand();
-        command.CommandText = "SELECT payload FROM cache_entries WHERE bucket = $bucket AND cache_key = $key LIMIT 1;";
-        command.Parameters.AddWithValue("$bucket", bucket);
-        command.Parameters.AddWithValue("$key", key);
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT payload FROM cache_entries WHERE bucket = $bucket AND cache_key = $key LIMIT 1;";
+            command.Parameters.AddWithValue("$bucket", bucket);
+            command.Parameters.AddWithValue("$key", key);
 
-        var payload = await command.ExecuteScalarAsync(cancellationToken) as string;
-        return payload is null ? default : JsonSerializer.Deserialize<T>(payload, JsonOptions);
-    }
+            var payload = command.ExecuteScalar() as string;
+            return payload is null ? default : JsonSerializer.Deserialize<T>(payload, JsonOptions);
+        }, cancellationToken);
 
-    public async Task SetAsync<T>(string bucket, string key, T value, CancellationToken cancellationToken = default)
+    public Task SetAsync<T>(string bucket, string key, T value, CancellationToken cancellationToken = default)
     {
         var payload = JsonSerializer.Serialize(value, JsonOptions);
 
-        await using var connection = await OpenInitializedConnectionAsync(cancellationToken);
+        return Task.Run(() =>
+        {
+            using var connection = OpenInitializedConnection();
 
-        var command = connection.CreateCommand();
-        command.CommandText = """
-                              INSERT INTO cache_entries (bucket, cache_key, payload, created_utc)
-                              VALUES ($bucket, $key, $payload, $createdUtc)
-                              ON CONFLICT(bucket, cache_key) DO UPDATE SET
-                                  payload = excluded.payload,
-                                  created_utc = excluded.created_utc;
-                              """;
-        command.Parameters.AddWithValue("$bucket", bucket);
-        command.Parameters.AddWithValue("$key", key);
-        command.Parameters.AddWithValue("$payload", payload);
-        command.Parameters.AddWithValue("$createdUtc", DateTimeOffset.UtcNow.ToString("O"));
-        await command.ExecuteNonQueryAsync(cancellationToken);
+            var command = connection.CreateCommand();
+            command.CommandText = """
+                                  INSERT INTO cache_entries (bucket, cache_key, payload, created_utc)
+                                  VALUES ($bucket, $key, $payload, $createdUtc)
+                                  ON CONFLICT(bucket, cache_key) DO UPDATE SET
+                                      payload = excluded.payload,
+                                      created_utc = excluded.created_utc;
+                                  """;
+            command.Parameters.AddWithValue("$bucket", bucket);
+            command.Parameters.AddWithValue("$key", key);
+            command.Parameters.AddWithValue("$payload", payload);
+            command.Parameters.AddWithValue("$createdUtc", DateTimeOffset.UtcNow.ToString("O"));
+            command.ExecuteNonQuery();
+        }, cancellationToken);
     }
 
-    public async Task ClearAiLookupAsync(CancellationToken cancellationToken = default)
-    {
-        await using var connection = await OpenInitializedConnectionAsync(cancellationToken);
+    public Task ClearAiLookupAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            using var connection = OpenInitializedConnection();
 
-        var command = connection.CreateCommand();
-        command.CommandText = "DELETE FROM cache_entries WHERE bucket = $bucket; VACUUM;";
-        command.Parameters.AddWithValue("$bucket", AiLookupBucket);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
+            var command = connection.CreateCommand();
+            command.CommandText = "DELETE FROM cache_entries WHERE bucket = $bucket; VACUUM;";
+            command.Parameters.AddWithValue("$bucket", AiLookupBucket);
+            command.ExecuteNonQuery();
+        }, cancellationToken);
 
-    private async Task<SqliteConnection> OpenInitializedConnectionAsync(CancellationToken cancellationToken)
+    private SqliteConnection OpenInitializedConnection()
     {
         var directory = Path.GetDirectoryName(_databasePath);
         if (!string.IsNullOrEmpty(directory))
@@ -83,7 +90,7 @@ public sealed class TranslationCache
         var connection = new SqliteConnection(_connectionString);
         try
         {
-            await connection.OpenAsync(cancellationToken);
+            connection.Open();
 
             var command = connection.CreateCommand();
             command.CommandText = """
@@ -98,12 +105,12 @@ public sealed class TranslationCache
                                   DELETE FROM cache_entries WHERE bucket <> $aiLookupBucket;
                                   """;
             command.Parameters.AddWithValue("$aiLookupBucket", AiLookupBucket);
-            await command.ExecuteNonQueryAsync(cancellationToken);
+            command.ExecuteNonQuery();
             return connection;
         }
         catch
         {
-            await connection.DisposeAsync();
+            connection.Dispose();
             throw;
         }
     }
