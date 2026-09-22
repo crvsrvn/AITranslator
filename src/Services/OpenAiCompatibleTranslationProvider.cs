@@ -239,7 +239,12 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
             }
             else if (!string.IsNullOrEmpty(effort))
             {
-                var deepSeekEffort = effort is "xhigh" or "max" ? "max" : "high";
+                var deepSeekEffort = effort switch
+                {
+                    "low" => "low",
+                    "xhigh" or "max" => "max",
+                    _ => "high"
+                };
                 body["thinking"] = new { type = "enabled" };
                 body["reasoning_effort"] = deepSeekEffort;
             }
@@ -296,7 +301,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         return protocol == ApiProtocolNames.AnthropicMessages ? ResolveAnthropicMessagesEndpoint(endpoint) : ResolveChatCompletionsEndpoint(endpoint);
     }
 
-    private static bool IsPrivateNetworkEndpoint(Uri endpoint)
+    internal static bool IsPrivateNetworkEndpoint(Uri endpoint)
     {
         if (endpoint.IsLoopback)
         {

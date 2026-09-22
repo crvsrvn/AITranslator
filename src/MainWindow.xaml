@@ -597,16 +597,18 @@
                                         Header="{Binding Localization.ServicePreset}"
                                         SelectionChanged="ApiPresetComboBox_SelectionChanged" />
                                     <TextBox x:Name="ApiEndpointBox" Header="{Binding Localization.ApiEndpoint}" />
+                                    <PasswordBox
+                                        x:Name="ApiKeyBox"
+                                        Header="{Binding Localization.ApiKey}"
+                                        PasswordChanged="ApiKeyBox_PasswordChanged"
+                                        PasswordRevealMode="Peek" />
                                     <ComboBox
                                         x:Name="ApiModelBox"
                                         Header="{Binding Localization.Model}"
                                         IsEditable="True"
                                         SelectionChanged="ApiModelBox_SelectionChanged"
-                                        TextSubmitted="ApiModelBox_TextSubmitted" />
-                                    <PasswordBox
-                                        x:Name="ApiKeyBox"
-                                        Header="{Binding Localization.ApiKey}"
-                                        PasswordRevealMode="Peek" />
+                                        TextSubmitted="ApiModelBox_TextSubmitted"
+                                        Visibility="Collapsed" />
                                     <Grid ColumnSpacing="10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="1*" />
@@ -629,6 +631,14 @@
                                             <StackPanel Orientation="Horizontal" Spacing="7">
                                                 <SymbolIcon Symbol="Refresh" />
                                                 <TextBlock Text="{Binding Localization.TestConnection}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button
+                                            x:Name="RefreshModelsButton"
+                                            Click="RefreshModelsButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                                <SymbolIcon Symbol="Sync" />
+                                                <TextBlock Text="{Binding Localization.RefreshModels}" />
                                             </StackPanel>
                                         </Button>
                                     </StackPanel>

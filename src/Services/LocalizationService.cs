@@ -103,6 +103,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "已收到有效响应：{0}",
         [nameof(ApiTestSuccessUnsaved)] = "API 连接测试成功（设置未保存）",
         [nameof(ConnectionFailed)] = "连接失败",
+        [nameof(RefreshModels)] = "刷新模型列表",
+        [nameof(ModelsRefreshed)] = "已从服务获取 {0} 个模型；点击保存后才会生效。",
+        [nameof(ModelsRefreshFailed)] = "获取模型列表失败",
         [nameof(ProfileRestored)] = "已恢复 {0} 的配置；点击保存后才会生效。",
         [nameof(SaveReasoningFailed)] = "保存思考强度失败：{0}",
         [nameof(CacheCleared)] = "AI 查词缓存已清除",
@@ -225,6 +228,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "已收到有效回應：{0}",
         [nameof(ApiTestSuccessUnsaved)] = "API 連線測試成功（設定尚未儲存）",
         [nameof(ConnectionFailed)] = "連線失敗",
+        [nameof(RefreshModels)] = "重新整理模型清單",
+        [nameof(ModelsRefreshed)] = "已從服務取得 {0} 個模型；按一下儲存後才會生效。",
+        [nameof(ModelsRefreshFailed)] = "取得模型清單失敗",
         [nameof(ProfileRestored)] = "已還原 {0} 的設定；按一下儲存後才會生效。",
         [nameof(SaveReasoningFailed)] = "儲存思考強度失敗：{0}",
         [nameof(CacheCleared)] = "AI 查詞快取已清除",
@@ -347,6 +353,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "Received a valid response: {0}",
         [nameof(ApiTestSuccessUnsaved)] = "API connection test succeeded (settings not saved)",
         [nameof(ConnectionFailed)] = "Connection failed",
+        [nameof(RefreshModels)] = "Refresh models",
+        [nameof(ModelsRefreshed)] = "Fetched {0} models from the service; save settings to apply.",
+        [nameof(ModelsRefreshFailed)] = "Failed to fetch models",
         [nameof(ProfileRestored)] = "Restored the {0} profile; save settings to apply it.",
         [nameof(SaveReasoningFailed)] = "Could not save reasoning effort: {0}",
         [nameof(CacheCleared)] = "AI lookup cache cleared",
@@ -507,6 +516,9 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ValidResponse => Value();
     public string ApiTestSuccessUnsaved => Value();
     public string ConnectionFailed => Value();
+    public string RefreshModels => Value();
+    public string ModelsRefreshed => Value();
+    public string ModelsRefreshFailed => Value();
     public string ProfileRestored => Value();
     public string SaveReasoningFailed => Value();
     public string CacheCleared => Value();

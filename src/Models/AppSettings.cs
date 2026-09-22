@@ -10,7 +10,7 @@ public sealed class AppSettings
 
     public string TranslationEndpoint { get; set; } = "https://api.openai.com/v1";
 
-    public string TranslationModel { get; set; } = "gpt-5.6-terra";
+    public string TranslationModel { get; set; } = "gpt-5.6-sol";
 
     public string TranslationReasoningEffort { get; set; } = "medium";
 
@@ -72,5 +72,19 @@ public sealed class ApiProfileSettings
 
     public string ApiKeyPrefix { get; set; } = string.Empty;
 
-    public ApiProfileSettings Copy() => (ApiProfileSettings)MemberwiseClone();
+    /// <summary>从服务 /models 接口拉取的模型列表；为空时使用内置模板。</summary>
+    public List<string> Models { get; set; } = [];
+
+    /// <summary>服务返回的各模型支持的推理强度（目前仅 Claude 提供）。</summary>
+    public Dictionary<string, List<string>> ModelReasoningEfforts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public ApiProfileSettings Copy()
+    {
+        var copy = (ApiProfileSettings)MemberwiseClone();
+        copy.Models = [.. Models ?? []];
+        copy.ModelReasoningEfforts = ModelReasoningEfforts?
+            .ToDictionary(item => item.Key, item => new List<string>(item.Value ?? []), StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        return copy;
+    }
 }

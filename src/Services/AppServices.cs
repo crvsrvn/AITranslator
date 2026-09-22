@@ -41,6 +41,8 @@ public sealed class AppServices : IDisposable
 
     public OcrService Ocr { get; private set; } = null!;
 
+    public ModelCatalogService ModelCatalog { get; private set; } = null!;
+
     public static async Task<AppServices> CreateAsync(CancellationToken cancellationToken = default)
     {
         var paths = new AppPaths();
@@ -63,6 +65,7 @@ public sealed class AppServices : IDisposable
             translator, new SpeechService());
 
         services.Ocr = new OcrService();
+        services.ModelCatalog = new ModelCatalogService(httpClient);
         services.Documents = new DocumentTranslationService(translator, services.Ocr);
         return services;
     }

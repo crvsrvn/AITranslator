@@ -49,6 +49,8 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<string, ApiProfileSettings> _apiProfiles = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _apiKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _industryContextSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly DispatcherTimer _modelFetchTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+    private CancellationTokenSource? _modelFetchCancellation;
     private string? _activeApiPresetId;
     private AppWindow? _appWindow;
     private PointInt32? _lastRestoredWindowPosition;
@@ -94,6 +96,7 @@ public sealed partial class MainWindow : Window
             }
         });
         _industryContextSaveTimer.Tick += IndustryContextSaveTimer_Tick;
+        _modelFetchTimer.Tick += ModelFetchTimer_Tick;
         LoadSettingsIntoUiAsync();
 
         _hotkeyService = new HotkeyService(HandleHotkey);
@@ -711,12 +714,114 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        CancelModelFetch();
         CaptureActiveApiProfile();
         _activeApiPresetId = preset.Id;
-        ApplyApiProfile(preset, GetOrCreateApiProfile(preset));
-        ApiKeyBox.Password = _apiKeys.TryGetValue(preset.Id, out var apiKey) ? apiKey : string.Empty;
+        var profile = GetOrCreateApiProfile(preset);
+        ApplyApiProfile(preset, profile);
+        var apiKey = _apiKeys.TryGetValue(preset.Id, out var storedKey) ? storedKey : string.Empty;
+        SetApiKeyBoxPassword(apiKey);
         ApiTestInfoBar.IsOpen = false;
         ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.ProfileRestored), preset.DisplayName);
+        if (!string.IsNullOrWhiteSpace(apiKey) && profile.Models.Count == 0)
+        {
+            _ = RefreshModelsAsync();
+        }
+    }
+
+    private void ApiKeyBox_PasswordChanged(object sender, RoutedEventArgs e)
+    {
+        // 没有密钥时无法拉取模型，不显示模型选择；用户输入停止后自动按对应服务的接口拉取。
+        ApiModelBox.Visibility = string.IsNullOrWhiteSpace(ApiKeyBox.Password) ? Visibility.Collapsed : Visibility.Visible;
+        _modelFetchTimer.Stop();
+        if (!_isLoadingSettings && !string.IsNullOrWhiteSpace(ApiKeyBox.Password))
+        {
+            _modelFetchTimer.Start();
+        }
+    }
+
+    private void ModelFetchTimer_Tick(object? sender, object e)
+    {
+        _modelFetchTimer.Stop();
+        _ = RefreshModelsAsync();
+    }
+
+    private async void RefreshModelsButton_Click(object sender, RoutedEventArgs e) => await RefreshModelsAsync();
+
+    /// <summary>用当前预设的地址和密钥请求官方 /models 接口，结果写入该预设的配置；点击保存后才会持久化。</summary>
+    private async Task RefreshModelsAsync()
+    {
+        if (ApiPresetComboBox.SelectedItem is not ApiPreset preset || string.IsNullOrWhiteSpace(ApiKeyBox.Password))
+        {
+            return;
+        }
+
+        CancelModelFetch();
+        var cancellation = _modelFetchCancellation = new CancellationTokenSource();
+        ApiTestInfoBar.IsOpen = false;
+        RefreshModelsButton.IsEnabled = false;
+        try
+        {
+            var profile = ReadApiProfileFromUi();
+            var catalog = await _services.ModelCatalog.FetchAsync(preset, profile, ApiKeyBox.Password.Trim(), cancellation.Token);
+            if (cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            profile.Models = [.. catalog.Models];
+            profile.ModelReasoningEfforts = catalog.ReasoningEfforts.ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
+            _apiProfiles[preset.Id] = profile;
+            ApplyApiProfile(preset, profile);
+            ApiTestInfoBar.Severity = InfoBarSeverity.Success;
+            ApiTestInfoBar.Title = _services.Localization.Format(nameof(LocalizationService.ModelsRefreshed), catalog.Models.Count);
+            ApiTestInfoBar.Message = string.Empty;
+            ApiTestInfoBar.IsOpen = true;
+            ViewModel.StatusText = ApiTestInfoBar.Title;
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            ApiTestInfoBar.Severity = InfoBarSeverity.Error;
+            ApiTestInfoBar.Title = _services.Localization.ModelsRefreshFailed;
+            ApiTestInfoBar.Message = exception.Message;
+            ApiTestInfoBar.IsOpen = true;
+            ViewModel.StatusText = exception.Message;
+        }
+        finally
+        {
+            if (ReferenceEquals(_modelFetchCancellation, cancellation))
+            {
+                _modelFetchCancellation = null;
+                RefreshModelsButton.IsEnabled = true;
+            }
+
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelModelFetch()
+    {
+        _modelFetchTimer.Stop();
+        _modelFetchCancellation?.Cancel();
+        _modelFetchCancellation = null;
+        RefreshModelsButton.IsEnabled = true;
+    }
+
+    private void SetApiKeyBoxPassword(string value)
+    {
+        var wasLoadingSettings = _isLoadingSettings;
+        _isLoadingSettings = true;
+        try
+        {
+            ApiKeyBox.Password = value;
+        }
+        finally
+        {
+            _isLoadingSettings = wasLoadingSettings;
+        }
     }
 
     private void ApiModelBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -952,8 +1057,15 @@ public sealed partial class MainWindow : Window
 
             _activeApiPresetId = preset.Id;
             ApiPresetComboBox.SelectedItem = preset;
-            ApplyApiProfile(preset, GetOrCreateApiProfile(preset));
-            ApiKeyBox.Password = _apiKeys.TryGetValue(preset.Id, out var apiKey) ? apiKey : string.Empty;
+            var profile = GetOrCreateApiProfile(preset);
+            ApplyApiProfile(preset, profile);
+            var apiKey = _apiKeys.TryGetValue(preset.Id, out var storedKey) ? storedKey : string.Empty;
+            ApiKeyBox.Password = apiKey;
+            if (!string.IsNullOrWhiteSpace(apiKey) && profile.Models.Count == 0)
+            {
+                _ = RefreshModelsAsync();
+            }
+
             GlobalIndustryContextBox.Text = settings.IndustryContext ?? string.Empty;
             AppLanguageComboBox.SelectedItem = LanguageCatalog.InterfaceLanguages.First(item => item.Code == settings.AppLanguage);
             ThemeComboBox.SelectedIndex = settings.Theme switch
@@ -1208,14 +1320,15 @@ public sealed partial class MainWindow : Window
 
     private ApiProfileSettings ReadApiProfileFromUi()
     {
-        var model = GetSelectedApiModel();
-        return new ApiProfileSettings
-        {
-            TranslationEndpoint = ApiEndpointBox.Text.Trim(),
-            TranslationModel = model,
-            ApiKeyHeader = ApiHeaderBox.Text.Trim(),
-            ApiKeyPrefix = ApiPrefixBox.Text.Trim()
-        };
+        // 以当前预设已有配置为底，保留从服务拉取的模型列表。
+        var profile = _activeApiPresetId is not null && _apiProfiles.TryGetValue(_activeApiPresetId, out var existing)
+            ? existing.Copy()
+            : new ApiProfileSettings();
+        profile.TranslationEndpoint = ApiEndpointBox.Text.Trim();
+        profile.TranslationModel = GetSelectedApiModel();
+        profile.ApiKeyHeader = ApiHeaderBox.Text.Trim();
+        profile.ApiKeyPrefix = ApiPrefixBox.Text.Trim();
+        return profile;
     }
 
     private ApiProfileSettings GetOrCreateApiProfile(ApiPreset preset)
@@ -1245,10 +1358,11 @@ public sealed partial class MainWindow : Window
             ApiEndpointBox.Text = profile.TranslationEndpoint;
             ApiHeaderBox.Text = profile.ApiKeyHeader;
             ApiPrefixBox.Text = profile.ApiKeyPrefix;
-            ApiModelBox.ItemsSource = preset.Models;
+            var models = ApiPresetCatalog.GetModels(preset, profile);
+            ApiModelBox.ItemsSource = models;
 
-            var model = string.IsNullOrWhiteSpace(profile.TranslationModel) ? preset.Models[0] : profile.TranslationModel.Trim();
-            var knownModel = preset.Models.FirstOrDefault(item => string.Equals(item, model, StringComparison.OrdinalIgnoreCase));
+            var model = string.IsNullOrWhiteSpace(profile.TranslationModel) ? models[0] : profile.TranslationModel.Trim();
+            var knownModel = models.FirstOrDefault(item => string.Equals(item, model, StringComparison.OrdinalIgnoreCase));
             if (knownModel is null)
             {
                 ApiModelBox.SelectedItem = null;
@@ -1271,7 +1385,8 @@ public sealed partial class MainWindow : Window
 
     private void UpdateReasoningOptions(ApiPreset preset, string model, string translationEffort, string fileTranslationEffort)
     {
-        var effortOptions = ApiPresetCatalog.GetReasoningEfforts(preset, model)
+        _apiProfiles.TryGetValue(preset.Id, out var profile);
+        var effortOptions = ApiPresetCatalog.GetReasoningEfforts(preset, model, profile)
             .Select(item => new ReasoningEffortOption(item.Value, GetReasoningEffortDisplayName(item.Value)))
             .ToArray();
         var wasLoadingSettings = _isLoadingSettings;
@@ -1379,6 +1494,9 @@ public sealed partial class MainWindow : Window
         _isClosing = true;
         _industryContextSaveTimer.Stop();
         _industryContextSaveTimer.Tick -= IndustryContextSaveTimer_Tick;
+        _modelFetchTimer.Stop();
+        _modelFetchTimer.Tick -= ModelFetchTimer_Tick;
+        _modelFetchCancellation?.Cancel();
         Activated -= MainWindow_Activated;
         _services.Localization.LanguageChanged -= Localization_LanguageChanged;
         _captureWindow?.Close();
