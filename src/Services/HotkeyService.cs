@@ -17,7 +17,7 @@ public enum HotkeyAction
 
 public sealed class HotkeyService : IDisposable
 {
-    private const double DoubleControlIntervalMilliseconds = 300;
+    private const uint DoubleControlIntervalMilliseconds = 300;
     private const uint SupportedModifierMask = NativeMethods.ModAlt | NativeMethods.ModControl | NativeMethods.ModShift |
                                                     NativeMethods.ModWin;
     private readonly Action<HotkeyAction> _callback;
@@ -26,7 +26,6 @@ public sealed class HotkeyService : IDisposable
     private readonly NativeMethods.LowLevelKeyboardProcedure _keyboardProcedure;
     private readonly Thread _hookThread;
     private readonly object _registrationGate = new();
-    private readonly HashSet<uint> _pressedKeys = [];
     private readonly Dictionary<int, RegisteredHotkey> _registeredHotkeys = [];
     private HotkeyConfiguration _configuration = new([], null);
     private HotkeyConfiguration? _observedConfiguration;
@@ -34,9 +33,10 @@ public sealed class HotkeyService : IDisposable
     private Exception? _hookInitializationError;
     private nint _keyboardHook;
     private uint _hookThreadId;
+    private uint _lastKeyDown;
     private ControlSide? _pressedControl;
     private ControlSide? _lastTapControl;
-    private long _lastTapTimestamp;
+    private uint _lastTapTime;
     private bool _currentTapEligible;
     private bool _disposed;
 
@@ -256,7 +256,7 @@ public sealed class HotkeyService : IDisposable
                     if ((keyboard.Flags & NativeMethods.LlkhfInjected) == 0)
                     {
                         ProcessKeyboardInput(keyboard.VirtualKey,
-                            message is NativeMethods.WmKeyDown or NativeMethods.WmSystemKeyDown);
+                            message is NativeMethods.WmKeyDown or NativeMethods.WmSystemKeyDown, keyboard.Time);
                     }
                 }
             }
@@ -269,52 +269,57 @@ public sealed class HotkeyService : IDisposable
         return NativeMethods.CallNextHookEx(_keyboardHook, code, wParam, lParam);
     }
 
-    private void ProcessKeyboardInput(uint virtualKey, bool isKeyDown)
+    // 不自行累积"已按下的键"集合：锁屏、UAC、管理员窗口等场景会丢失抬起事件，残留的键会让双击 Ctrl 一直失效。
+    // 修饰键状态改为实时读取系统按键状态，自身只记录可自愈的最小状态。
+    private void ProcessKeyboardInput(uint virtualKey, bool isKeyDown, uint time)
     {
         var configuration = Volatile.Read(ref _configuration);
         if (!ReferenceEquals(configuration, _observedConfiguration))
         {
             _observedConfiguration = configuration;
-            _pressedKeys.Clear();
+            _lastKeyDown = 0;
             ResetDoubleControlState();
         }
 
-        if (isKeyDown)
+        if (TryGetControlSide(virtualKey, out var control))
         {
-            if (!_pressedKeys.Add(virtualKey))
+            if (isKeyDown)
             {
-                return;
-            }
-
-            if (TryGetControlSide(virtualKey, out var controlSide))
-            {
-                ProcessControlKeyDown(controlSide, configuration.DoubleControlAction);
+                ProcessControlKeyDown(control, configuration.DoubleControlAction);
             }
             else
             {
-                ResetDoubleControlState();
-            }
-
-            if (!IsModifierKey(virtualKey))
-            {
-                var modifiers = GetPressedModifiers();
-                var shortcut = configuration.Shortcuts.FirstOrDefault(item =>
-                    item.VirtualKey == virtualKey && item.Modifiers == modifiers);
-                if (shortcut is not null)
-                {
-                    Dispatch(shortcut.Action);
-                }
+                ProcessControlKeyUp(control, time, configuration.DoubleControlAction);
             }
 
             return;
         }
 
-        if (TryGetControlSide(virtualKey, out var releasedControl))
+        if (!isKeyDown)
         {
-            ProcessControlKeyUp(releasedControl, configuration.DoubleControlAction);
+            if (_lastKeyDown == virtualKey)
+            {
+                _lastKeyDown = 0;
+            }
+
+            return;
         }
 
-        _pressedKeys.Remove(virtualKey);
+        ResetDoubleControlState();
+        // 只有最后按下的键会自动重复，据此过滤重复按下，避免按住快捷键时反复触发。
+        if (IsModifierKey(virtualKey) || virtualKey == _lastKeyDown)
+        {
+            return;
+        }
+
+        _lastKeyDown = virtualKey;
+        var modifiers = GetPressedModifiers();
+        var shortcut = configuration.Shortcuts.FirstOrDefault(item =>
+            item.VirtualKey == virtualKey && item.Modifiers == modifiers);
+        if (shortcut is not null)
+        {
+            Dispatch(shortcut.Action);
+        }
     }
 
     private void ProcessControlKeyDown(ControlSide control, HotkeyAction? action)
@@ -325,18 +330,23 @@ public sealed class HotkeyService : IDisposable
             return;
         }
 
-        if (_pressedControl is null)
+        if (_pressedControl == control)
         {
-            _pressedControl = control;
-            _currentTapEligible = _pressedKeys.All(IsControlKey);
+            // 自动重复；若是丢失抬起事件后的再次按下，下一次抬起即可恢复正常。
+            return;
         }
-        else if (_pressedControl != control)
+
+        if (_pressedControl is not null)
         {
             _currentTapEligible = false;
+            return;
         }
+
+        _pressedControl = control;
+        _currentTapEligible = (GetPressedModifiers() & ~NativeMethods.ModControl) == 0;
     }
 
-    private void ProcessControlKeyUp(ControlSide control, HotkeyAction? action)
+    private void ProcessControlKeyUp(ControlSide control, uint time, HotkeyAction? action)
     {
         if (action is null || _pressedControl != control || !_currentTapEligible)
         {
@@ -346,9 +356,8 @@ public sealed class HotkeyService : IDisposable
 
         _pressedControl = null;
         _currentTapEligible = false;
-        var now = Stopwatch.GetTimestamp();
-        var elapsedMilliseconds = (now - _lastTapTimestamp) * 1000d / Stopwatch.Frequency;
-        if (_lastTapControl == control && elapsedMilliseconds <= DoubleControlIntervalMilliseconds)
+        // 使用事件自带的时间戳，不受钩子链中其他钩子回调延迟的影响；无符号减法可处理 TickCount 回绕。
+        if (_lastTapControl == control && time - _lastTapTime <= DoubleControlIntervalMilliseconds)
         {
             ResetDoubleControlState();
             Dispatch(action.Value);
@@ -356,34 +365,38 @@ public sealed class HotkeyService : IDisposable
         }
 
         _lastTapControl = control;
-        _lastTapTimestamp = now;
+        _lastTapTime = time;
     }
 
-    private uint GetPressedModifiers()
+    // 当前处理的是非修饰键（或 Ctrl 本身），此前按下的修饰键已反映在系统异步按键状态中。
+    private static uint GetPressedModifiers()
     {
         uint modifiers = 0;
-        if (_pressedKeys.Any(IsControlKey))
+        if (IsKeyPressed(NativeMethods.VkControl))
         {
             modifiers |= NativeMethods.ModControl;
         }
 
-        if (_pressedKeys.Any(IsAltKey))
+        if (IsKeyPressed(NativeMethods.VkAlt))
         {
             modifiers |= NativeMethods.ModAlt;
         }
 
-        if (_pressedKeys.Any(IsShiftKey))
+        if (IsKeyPressed(NativeMethods.VkShift))
         {
             modifiers |= NativeMethods.ModShift;
         }
 
-        if (_pressedKeys.Any(IsWindowsKey))
+        if (IsKeyPressed(NativeMethods.VkLeftWindows) || IsKeyPressed(NativeMethods.VkRightWindows))
         {
             modifiers |= NativeMethods.ModWin;
         }
 
         return modifiers;
     }
+
+    private static bool IsKeyPressed(uint virtualKey) =>
+        (NativeMethods.GetAsyncKeyState((int)virtualKey) & 0x8000) != 0;
 
     private void Dispatch(HotkeyAction action)
     {
@@ -400,7 +413,7 @@ public sealed class HotkeyService : IDisposable
     {
         _pressedControl = null;
         _lastTapControl = null;
-        _lastTapTimestamp = 0;
+        _lastTapTime = 0;
         _currentTapEligible = false;
     }
 
