@@ -78,6 +78,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(FileNotSelected)] = "尚未选择文件",
         [nameof(LoadedFromCache)] = "已从本地缓存读取",
         [nameof(TranslationComplete)] = "翻译完成",
+        [nameof(ChatRound)] = "AI 对话 · 第 {0} 轮",
+        [nameof(ChatCleared)] = "已清空 AI 对话",
         [nameof(ReadingOfflineDictionary)] = "正在读取离线词典",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "正在读取离线词典…",
         [nameof(ReadingSelectedTextEllipsis)] = "正在读取选中文本…",
@@ -203,6 +205,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(FileNotSelected)] = "尚未選擇檔案",
         [nameof(LoadedFromCache)] = "已從本機快取讀取",
         [nameof(TranslationComplete)] = "翻譯完成",
+        [nameof(ChatRound)] = "AI 對話 · 第 {0} 輪",
+        [nameof(ChatCleared)] = "已清除 AI 對話",
         [nameof(ReadingOfflineDictionary)] = "正在讀取離線詞典",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "正在讀取離線詞典…",
         [nameof(ReadingSelectedTextEllipsis)] = "正在讀取選取文字…",
@@ -328,6 +332,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(FileNotSelected)] = "No file selected",
         [nameof(LoadedFromCache)] = "Loaded from local cache",
         [nameof(TranslationComplete)] = "Translation complete",
+        [nameof(ChatRound)] = "AI chat · round {0}",
+        [nameof(ChatCleared)] = "AI chat cleared",
         [nameof(ReadingOfflineDictionary)] = "Reading offline dictionary",
         [nameof(ReadingOfflineDictionaryEllipsis)] = "Reading offline dictionary...",
         [nameof(ReadingSelectedTextEllipsis)] = "Reading selected text...",
@@ -491,6 +497,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string FileNotSelected => Value();
     public string LoadedFromCache => Value();
     public string TranslationComplete => Value();
+    public string ChatRound => Value();
+    public string ChatCleared => Value();
     public string ReadingOfflineDictionary => Value();
     public string ReadingOfflineDictionaryEllipsis => Value();
     public string ReadingSelectedTextEllipsis => Value();

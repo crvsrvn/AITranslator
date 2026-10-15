@@ -10,6 +10,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
@@ -62,6 +63,7 @@ public sealed partial class MainWindow : Window
         ViewModel = new MainViewModel(services);
         InitializeComponent();
         Root.DataContext = ViewModel;
+        ViewModel.ChatUpdated += ViewModel_ChatUpdated;
         _services.Localization.LanguageChanged += Localization_LanguageChanged;
         ApplyLocalization();
         Root.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(Root_PreviewKeyDown), true);
@@ -475,7 +477,7 @@ public sealed partial class MainWindow : Window
                 }
                 else
                 {
-                    _ = _services.Speech.SpeakAsync(ViewModel.GetPreferredSpeechText(), ViewModel.SelectedTargetLanguage.Code);
+                    _ = ViewModel.SpeakPreferredTextAsync();
                 }
 
                 break;
@@ -610,7 +612,31 @@ public sealed partial class MainWindow : Window
             {
                 ViewModel.SmartTranslateCommand.Execute(null);
             }
+
+            // AI 对话发送后输入框被预填为标记，光标移到末尾以便直接追问。
+            if (LookupInput.Text == TranslationInputRouter.ChatMarker)
+            {
+                LookupInput.SelectionStart = LookupInput.Text.Length;
+            }
         }
+    }
+
+    private void ViewModel_ChatUpdated(object? sender, int? questionOffset)
+    {
+        var viewer = TranslationResultScrollViewer;
+        viewer.UpdateLayout();
+        // 偏移多取 1 个字符，确保落在问题首行内，避开文本元素边界的计数差异。
+        var position = questionOffset is { } offset
+            ? TranslationResultText.ContentStart.GetPositionAtOffset(offset + 1, LogicalDirection.Forward)
+            : null;
+        if (position is null)
+        {
+            viewer.ChangeView(null, viewer.ScrollableHeight, null, true);
+            return;
+        }
+
+        var line = position.GetCharacterRect(LogicalDirection.Forward);
+        viewer.ChangeView(null, Math.Max(0, line.Y + line.Height / 2 - viewer.ViewportHeight / 2), null, true);
     }
 
     private async void ChooseFileButton_Click(object sender, RoutedEventArgs e)

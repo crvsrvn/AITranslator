@@ -35,6 +35,19 @@ public sealed class TranslationOrchestrator
         return await _provider.TranslateAsync(request, settings, apiKey, cancellationToken);
     }
 
+    public async Task<string> ChatAsync(IReadOnlyList<ChatTurn> history, string message, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            throw new ArgumentException("对话内容不能为空。", nameof(message));
+        }
+
+        var settings = _settingsService.Current.Copy();
+        settings.ActiveReasoningEffort = settings.TranslationReasoningEffort;
+        var apiKey = await _secretStore.ReadApiKeyAsync(settings.ApiPreset, cancellationToken);
+        return await _provider.ChatAsync(history, message, settings, apiKey, cancellationToken);
+    }
+
     public async Task<LookupAnalysisResult> LookupAsync(string text, string sourceLanguage, string targetLanguage, string domain,
         CancellationToken cancellationToken = default)
     {

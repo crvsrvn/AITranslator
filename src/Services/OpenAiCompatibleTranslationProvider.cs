@@ -30,6 +30,11 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                                                     such as "In this context" or "在该领域中".
                                                    """;
 
+    private const string ChatSystemPrompt = """
+                                             You are a helpful assistant. Answer the user's message directly and accurately. Reply in the language of
+                                             the user's message unless asked otherwise. Use plain text without Markdown.
+                                             """;
+
     private const string LookupSystemPrompt = """
                                                You are a precise multilingual translator and lexicographer. Translate the query directly as a word or short phrase
                                                from the effective source language into the required target language. Obey the source and target language requirements
@@ -153,6 +158,17 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         return ParseDocumentTranslationContent(content, request, settings.ApiPreset);
     }
 
+    public async Task<string> ChatAsync(IReadOnlyList<ChatTurn> history, string message, AppSettings settings, string apiKey,
+        CancellationToken cancellationToken = default)
+    {
+        var messages = history
+            .SelectMany(turn => new[] { ApiMessage("user", turn.Question), ApiMessage("assistant", turn.Answer) })
+            .Append(ApiMessage("user", message))
+            .ToArray();
+        var content = await SendMessagesAsync(ChatSystemPrompt, messages, settings, apiKey, cancellationToken);
+        return content.Trim();
+    }
+
     public async Task<LookupAnalysisResult> LookupAsync(string text, string sourceLanguage, string targetLanguage, string domain, AppSettings settings,
         string apiKey,
         CancellationToken cancellationToken = default)
@@ -169,7 +185,11 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         return ParseLookupContent(content, text, targetLanguage, settings.ApiPreset, context);
     }
 
-    private async Task<string> SendPromptAsync(string systemPrompt, string userPrompt, AppSettings settings, string apiKey,
+    private Task<string> SendPromptAsync(string systemPrompt, string userPrompt, AppSettings settings, string apiKey,
+        CancellationToken cancellationToken, int maximumOutputTokens = 4_096) =>
+        SendMessagesAsync(systemPrompt, [ApiMessage("user", userPrompt)], settings, apiKey, cancellationToken, maximumOutputTokens);
+
+    private async Task<string> SendMessagesAsync(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings, string apiKey,
         CancellationToken cancellationToken, int maximumOutputTokens = 4_096)
     {
         if (string.IsNullOrWhiteSpace(settings.TranslationModel))
@@ -182,8 +202,8 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         using var message = new HttpRequestMessage(HttpMethod.Post, endpoint)
         {
             Content = protocol == ApiProtocolNames.AnthropicMessages
-                ? JsonContent.Create(CreateAnthropicBody(systemPrompt, userPrompt, settings, maximumOutputTokens))
-                : JsonContent.Create(CreateOpenAiBody(systemPrompt, userPrompt, settings))
+                ? JsonContent.Create(CreateAnthropicBody(systemPrompt, messages, settings, maximumOutputTokens))
+                : JsonContent.Create(CreateOpenAiBody(systemPrompt, messages, settings))
         };
 
         AddAuthenticationHeader(message, settings, apiKey);
@@ -218,16 +238,14 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         }
     }
 
-    private static Dictionary<string, object?> CreateOpenAiBody(string systemPrompt, string userPrompt, AppSettings settings)
+    private static object ApiMessage(string role, string content) => new { role, content };
+
+    private static Dictionary<string, object?> CreateOpenAiBody(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings)
     {
         var body = new Dictionary<string, object?>
         {
             ["model"] = settings.TranslationModel.Trim(),
-            ["messages"] = new object[]
-            {
-                new { role = "system", content = systemPrompt },
-                new { role = "user", content = userPrompt }
-            }
+            ["messages"] = messages.Prepend(ApiMessage("system", systemPrompt)).ToArray()
         };
 
         var effort = settings.ActiveReasoningEffort.Trim().ToLowerInvariant();
@@ -261,7 +279,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         return body;
     }
 
-    private static Dictionary<string, object?> CreateAnthropicBody(string systemPrompt, string userPrompt, AppSettings settings,
+    private static Dictionary<string, object?> CreateAnthropicBody(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings,
         int maximumOutputTokens)
     {
         var body = new Dictionary<string, object?>
@@ -269,7 +287,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
             ["model"] = settings.TranslationModel.Trim(),
             ["max_tokens"] = maximumOutputTokens,
             ["system"] = systemPrompt,
-            ["messages"] = new object[] { new { role = "user", content = userPrompt } }
+            ["messages"] = messages
         };
 
         var effort = settings.ActiveReasoningEffort.Trim().ToLowerInvariant();

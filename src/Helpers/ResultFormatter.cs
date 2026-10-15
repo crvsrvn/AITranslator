@@ -21,6 +21,32 @@ public static class ResultFormatter
             : $"{generalResult}{Environment.NewLine}{Environment.NewLine}{contextualResult}";
     }
 
+    // pendingQuestion 非空时在末尾追加等待中的提问；latestQuestionOffset 为最后一个问题在结果中的字符位置。
+    // 统一用 \n 换行，使字符位置与界面文本位置一致。
+    public static string FormatChat(IEnumerable<ChatTurn> turns, string? pendingQuestion, out int latestQuestionOffset)
+    {
+        var builder = new StringBuilder();
+        latestQuestionOffset = 0;
+        var blocks = turns.Select(turn => (turn.Question, turn.Answer));
+        if (pendingQuestion is not null)
+        {
+            blocks = blocks.Append((pendingQuestion, "…"));
+        }
+
+        foreach (var (question, answer) in blocks)
+        {
+            if (builder.Length > 0)
+            {
+                builder.Append("\n\n");
+            }
+
+            latestQuestionOffset = builder.Length;
+            builder.Append(">>>>>>> ").Append(question.ReplaceLineEndings("\n")).Append("\n\n").Append(answer.ReplaceLineEndings("\n"));
+        }
+
+        return builder.ToString();
+    }
+
     public static string FormatDictionary(DictionaryEntry? entry, LocalizationService localization)
     {
         if (entry is null)

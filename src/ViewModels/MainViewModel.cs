@@ -17,6 +17,10 @@ public partial class MainViewModel : ObservableObject
     private IReadOnlyList<LanguageOption> _targetLanguages = [];
     private bool _isRefreshingLanguageOptions;
 
+    // 发送给 AI 的最大历史轮数；显示仍保留完整对话。
+    private const int MaxChatContextTurns = 20;
+    private readonly List<ChatTurn> _chatHistory = [];
+
     public MainViewModel(AppServices services)
     {
         _services = services;
@@ -29,6 +33,9 @@ public partial class MainViewModel : ObservableObject
     }
 
     public LocalizationService Localization => _services.Localization;
+
+    // AI 对话内容更新时触发；参数为需居中显示的问题字符位置，null 表示滚动到底部。
+    public event EventHandler<int?>? ChatUpdated;
 
     public IReadOnlyList<LanguageOption> AppLanguages => LanguageCatalog.InterfaceLanguages;
 
@@ -104,6 +111,13 @@ public partial class MainViewModel : ObservableObject
     private async Task SmartTranslateAsync()
     {
         var query = InputText.Trim();
+        if (TranslationInputRouter.TryParseChat(query, out var chatMessage))
+        {
+            await ChatAsync(chatMessage);
+            return;
+        }
+
+        _chatHistory.Clear();
         if (TranslationInputRouter.ShouldUseLookup(query))
         {
             LookupResultVisibility = Visibility.Visible;
@@ -123,6 +137,54 @@ public partial class MainViewModel : ObservableObject
             StatusText = result.FromCache ? Localization.LoadedFromCache : Localization.TranslationComplete;
         });
     }
+
+    private async Task ChatAsync(string message)
+    {
+        LookupResultVisibility = Visibility.Collapsed;
+        TextResultVisibility = Visibility.Visible;
+        if (message.Length == 0)
+        {
+            _chatHistory.Clear();
+            ShowChat(null);
+            StatusText = Localization.ChatCleared;
+            return;
+        }
+
+        var context = _chatHistory.TakeLast(MaxChatContextTurns).ToArray();
+        // 预填标记，便于直接输入追问。
+        InputText = TranslationInputRouter.ChatMarker;
+        ShowChat(message);
+        IsBusy = true;
+        StatusText = Localization.Processing;
+        try
+        {
+            var answer = await _services.Translator.ChatAsync(context, message);
+            _chatHistory.Add(new ChatTurn(message, answer));
+            ShowChat(null, focusLatestQuestion: true);
+            StatusText = Localization.Format(nameof(LocalizationService.ChatRound), _chatHistory.Count);
+        }
+        catch (Exception exception)
+        {
+            ShowChat(null);
+            InputText = TranslationInputRouter.ChatMarker + message;
+            StatusText = exception.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void ShowChat(string? pendingQuestion, bool focusLatestQuestion = false)
+    {
+        TranslatedText = ResultFormatter.FormatChat(_chatHistory, pendingQuestion, out var latestQuestionOffset);
+        ChatUpdated?.Invoke(this, focusLatestQuestion ? latestQuestionOffset : null);
+    }
+
+    private string? LatestChatAnswer =>
+        TextResultVisibility == Visibility.Visible ? _chatHistory.LastOrDefault()?.Answer : null;
+
+    private static string GetChatSpeechLanguage(string answer) => PhoneticService.ContainsChinese(answer) ? "zh-CN" : "en-US";
 
     private async Task LookupAsync(string query)
     {
@@ -230,8 +292,21 @@ public partial class MainViewModel : ObservableObject
         await _services.Speech.SpeakAsync(InputText, SelectedSourceLanguage.Code);
 
     [RelayCommand]
-    private async Task SpeakTranslationAsync() =>
+    private async Task SpeakTranslationAsync()
+    {
+        if (LatestChatAnswer is { } answer)
+        {
+            await _services.Speech.SpeakAsync(answer, GetChatSpeechLanguage(answer));
+            return;
+        }
+
         await _services.Speech.SpeakAsync(TranslatedText, SelectedTargetLanguage.Code);
+    }
+
+    public Task SpeakPreferredTextAsync() =>
+        LatestChatAnswer is { } answer
+            ? _services.Speech.SpeakAsync(answer, GetChatSpeechLanguage(answer))
+            : _services.Speech.SpeakAsync(GetPreferredSpeechText(), SelectedTargetLanguage.Code);
 
     [RelayCommand]
     private void SwapLanguages()

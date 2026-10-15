@@ -20,6 +20,8 @@ public sealed record TranslationResult(
     public string? ContextualTranslation { get; init; }
 }
 
+public sealed record ChatTurn(string Question, string Answer);
+
 public sealed record DocumentTextUnit(int Id, string Text);
 
 public sealed record DocumentTranslationRequest(

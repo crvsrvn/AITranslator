@@ -368,8 +368,9 @@
                                         Height="1"
                                         Margin="0,14"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer Grid.Row="2">
+                                    <ScrollViewer x:Name="TranslationResultScrollViewer" Grid.Row="2">
                                         <TextBlock
+                                            x:Name="TranslationResultText"
                                             Foreground="{ThemeResource AppTextBrush}"
                                             IsTextSelectionEnabled="True"
                                             Text="{Binding TranslatedText}"
