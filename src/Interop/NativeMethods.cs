@@ -6,6 +6,9 @@ internal static class NativeMethods
 {
     internal const uint WmNull = 0x0000;
     internal const uint WmSize = 0x0005;
+    internal const uint WmSettingChange = 0x001A;
+    internal const uint WmDisplayChange = 0x007E;
+    internal const uint WmDpiChanged = 0x02E0;
     internal const int GwlWndProc = -4;
     internal const int WhKeyboardLl = 13;
     internal const int WhMouseLl = 14;
@@ -19,6 +22,7 @@ internal static class NativeMethods
     internal const uint WmSystemKeyDown = 0x0104;
     internal const uint WmSystemKeyUp = 0x0105;
     internal const uint WmCopy = 0x0301;
+    internal const uint WmMouseMove = 0x0200;
     internal const uint WmLeftButtonDown = 0x0201;
     internal const uint WmLeftButtonUp = 0x0202;
     internal const uint WmLeftButtonDoubleClick = 0x0203;
@@ -46,6 +50,8 @@ internal static class NativeMethods
     internal const int SmYVirtualScreen = 77;
     internal const int SmCxVirtualScreen = 78;
     internal const int SmCyVirtualScreen = 79;
+    internal const int SmCxSmallIcon = 49;
+    internal const uint DefaultDpi = 96;
     internal const uint InputKeyboard = 1;
     internal const uint KeyEventKeyUp = 0x0002;
     internal const uint SmtoAbortIfHung = 0x0002;
@@ -62,7 +68,6 @@ internal static class NativeMethods
     internal const uint TpmRightButton = 0x0002;
     internal const uint ImageIcon = 1;
     internal const uint LrLoadFromFile = 0x00000010;
-    internal const uint LrDefaultSize = 0x00000040;
     internal const uint VkShift = 0x10;
     internal const ushort VkControl = 0x11;
     internal const uint VkAlt = 0x12;
@@ -247,6 +252,15 @@ internal static class NativeMethods
 
     [DllImport("user32.dll")]
     internal static extern int GetSystemMetrics(int index);
+
+    [DllImport("user32.dll")]
+    internal static extern int GetSystemMetricsForDpi(int index, uint dpi);
+
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForWindow(nint windowHandle);
+
+    [DllImport("user32.dll", EntryPoint = "FindWindowW", CharSet = CharSet.Unicode)]
+    internal static extern nint FindWindow(string? className, string? windowName);
 
     [DllImport("user32.dll")]
     internal static extern short GetKeyState(int virtualKey);

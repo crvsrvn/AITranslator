@@ -16,7 +16,9 @@ public sealed class TrayIconService : IDisposable
     private readonly Action _exit;
     private readonly NativeMethods.SubclassProcedure _subclassProcedure;
     private readonly uint _taskbarCreatedMessage;
+    private readonly string _iconPath;
     private nint _iconHandle;
+    private int _iconSize;
     private bool _iconAdded;
     private bool _subclassInstalled;
     private bool _disposed;
@@ -24,17 +26,14 @@ public sealed class TrayIconService : IDisposable
     public TrayIconService(nint windowHandle, string iconPath, LocalizationService localization, Action activate, Action exit)
     {
         _windowHandle = windowHandle;
+        _iconPath = iconPath;
         _localization = localization;
         _activate = activate;
         _exit = exit;
         _subclassProcedure = WindowProcedure;
         _taskbarCreatedMessage = NativeMethods.RegisterWindowMessage("TaskbarCreated");
-        _iconHandle = NativeMethods.LoadImage(0, iconPath, NativeMethods.ImageIcon, 0, 0,
-            NativeMethods.LrLoadFromFile | NativeMethods.LrDefaultSize);
-        if (_iconHandle == 0)
-        {
-            throw new Win32Exception(Marshal.GetLastWin32Error(), "无法加载托盘图标。");
-        }
+        _iconSize = GetTrayIconSize();
+        _iconHandle = LoadIcon(_iconSize);
 
         try
         {
@@ -65,6 +64,50 @@ public sealed class TrayIconService : IDisposable
         _iconAdded = true;
     }
 
+    private nint LoadIcon(int size)
+    {
+        var icon = NativeMethods.LoadImage(0, _iconPath, NativeMethods.ImageIcon, size, size, NativeMethods.LrLoadFromFile);
+        if (icon == 0)
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "无法加载托盘图标。");
+        }
+
+        return icon;
+    }
+
+    // 按任务栏当前 DPI 取小图标尺寸；进程内的系统 DPI 在显示设置、远程桌面切换后会过时，导致图标被缩放而模糊。
+    private int GetTrayIconSize()
+    {
+        var taskbar = NativeMethods.FindWindow("Shell_TrayWnd", null);
+        var dpi = taskbar == 0 ? 0 : NativeMethods.GetDpiForWindow(taskbar);
+        if (dpi == 0)
+        {
+            dpi = NativeMethods.GetDpiForWindow(_windowHandle);
+        }
+
+        return NativeMethods.GetSystemMetricsForDpi(NativeMethods.SmCxSmallIcon, dpi == 0 ? NativeMethods.DefaultDpi : dpi);
+    }
+
+    private void UpdateIconForCurrentDpi()
+    {
+        var size = GetTrayIconSize();
+        if (size == _iconSize)
+        {
+            return;
+        }
+
+        var previousIcon = _iconHandle;
+        _iconHandle = LoadIcon(size);
+        _iconSize = size;
+        if (_iconAdded)
+        {
+            var data = CreateIconData();
+            NativeMethods.ShellNotifyIcon(NativeMethods.NimModify, ref data);
+        }
+
+        NativeMethods.DestroyIcon(previousIcon);
+    }
+
     private NativeMethods.NotifyIconData CreateIconData() => new()
     {
         Size = (uint)Marshal.SizeOf<NativeMethods.NotifyIconData>(),
@@ -89,9 +132,21 @@ public sealed class TrayIconService : IDisposable
                 return 0;
             }
 
+            if (message is NativeMethods.WmDpiChanged or NativeMethods.WmDisplayChange or NativeMethods.WmSettingChange)
+            {
+                UpdateIconForCurrentDpi();
+            }
+
             if (message == NativeMethods.WmTrayIcon)
             {
                 var notification = unchecked((uint)lParam) & 0xFFFF;
+                if (notification == NativeMethods.WmMouseMove)
+                {
+                    // 广播消息可能早于任务栏自身更新 DPI，鼠标经过托盘图标时再兜底校正一次。
+                    UpdateIconForCurrentDpi();
+                    return 0;
+                }
+
                 if (notification == NativeMethods.WmLeftButtonUp)
                 {
                     _activate();
@@ -108,6 +163,7 @@ public sealed class TrayIconService : IDisposable
             if (_taskbarCreatedMessage != 0 && message == _taskbarCreatedMessage)
             {
                 _iconAdded = false;
+                UpdateIconForCurrentDpi();
                 AddIcon();
             }
         }

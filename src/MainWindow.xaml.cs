@@ -195,6 +195,12 @@ public sealed partial class MainWindow : Window
             {
                 _hideFromSwitchersWhenMinimized = true;
                 presenter.Minimize(false);
+                // Changed 事件可能不触发或触发时状态尚未更新（如窗口本已最小化），此时直接隐藏任务栏按钮，避免标记残留。
+                if (presenter.State == OverlappedPresenterState.Minimized)
+                {
+                    _hideFromSwitchersWhenMinimized = false;
+                    _appWindow.IsShownInSwitchers = false;
+                }
             }
             else
             {
