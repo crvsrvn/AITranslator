@@ -62,15 +62,16 @@ public sealed class DocumentTranslationService
         using var document = WordprocessingDocument.Open(outputPath, true);
         var mainPart = document.MainDocumentPart ?? throw new InvalidDataException("Word 文件缺少正文结构。");
         var units = new List<TextUnit>();
-        AddWordUnits(units, mainPart.Document.Descendants<W.Paragraph>());
+        var wordDocument = mainPart.Document ?? throw new InvalidDataException("Word 文件缺少正文结构。");
+        AddWordUnits(units, wordDocument.Descendants<W.Paragraph>());
         foreach (var headerPart in mainPart.HeaderParts)
         {
-            AddWordUnits(units, headerPart.Header.Descendants<W.Paragraph>());
+            AddWordUnits(units, headerPart.Header?.Descendants<W.Paragraph>() ?? []);
         }
 
         foreach (var footerPart in mainPart.FooterParts)
         {
-            AddWordUnits(units, footerPart.Footer.Descendants<W.Paragraph>());
+            AddWordUnits(units, footerPart.Footer?.Descendants<W.Paragraph>() ?? []);
         }
 
         if (mainPart.FootnotesPart?.Footnotes is { } footnotes)
@@ -84,15 +85,15 @@ public sealed class DocumentTranslationService
         }
 
         await ProcessUnitsAsync(units, sourceLanguage, targetLanguage, domain, progress, cancellationToken);
-        mainPart.Document.Save();
+        wordDocument.Save();
         foreach (var headerPart in mainPart.HeaderParts)
         {
-            headerPart.Header.Save();
+            headerPart.Header?.Save();
         }
 
         foreach (var footerPart in mainPart.FooterParts)
         {
-            footerPart.Footer.Save();
+            footerPart.Footer?.Save();
         }
 
         mainPart.FootnotesPart?.Footnotes?.Save();
@@ -113,7 +114,7 @@ public sealed class DocumentTranslationService
         var textBlocks = new List<PresentationTextBlock>();
         foreach (var slidePart in slideParts)
         {
-            AddPresentationUnits(units, textBlocks, slidePart.Slide.Descendants<P.TextBody>());
+            AddPresentationUnits(units, textBlocks, slidePart.Slide?.Descendants<P.TextBody>() ?? []);
             if (slidePart.NotesSlidePart?.NotesSlide is { } notesSlide)
             {
                 AddPresentationUnits(units, textBlocks, notesSlide.Descendants<P.TextBody>());
@@ -128,8 +129,8 @@ public sealed class DocumentTranslationService
 
         foreach (var slidePart in slideParts)
         {
-            slidePart.Slide.Save();
-            slidePart.NotesSlidePart?.NotesSlide.Save();
+            slidePart.Slide?.Save();
+            slidePart.NotesSlidePart?.NotesSlide?.Save();
         }
 
         return new FileTranslationReport(sourcePath, outputPath, units.Count);
@@ -154,7 +155,7 @@ public sealed class DocumentTranslationService
 
         foreach (var worksheetPart in workbookPart.WorksheetParts)
         {
-            foreach (var cell in worksheetPart.Worksheet.Descendants<S.Cell>())
+            foreach (var cell in worksheetPart.Worksheet?.Descendants<S.Cell>() ?? [])
             {
                 if (cell.CellFormula is not null || cell.DataType is null)
                 {
@@ -185,10 +186,10 @@ public sealed class DocumentTranslationService
         sharedStringTable?.Save();
         foreach (var worksheetPart in workbookPart.WorksheetParts)
         {
-            worksheetPart.Worksheet.Save();
+            worksheetPart.Worksheet?.Save();
         }
 
-        workbookPart.Workbook.Save();
+        workbookPart.Workbook?.Save();
         return new FileTranslationReport(sourcePath, outputPath, units.Count);
     }
 

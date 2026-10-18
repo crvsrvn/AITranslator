@@ -20,9 +20,9 @@ internal static class Program
     private const string DesktopFrameworkName = "Microsoft.WindowsDesktop.App";
     private const string DotNetRuntimeDownloadUrl = "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe";
     private const string WindowsAppRuntimeBootstrapFileName = "Microsoft.WindowsAppRuntime.Bootstrap.dll";
-    private const string WindowsAppRuntimeDownloadUrl = "https://aka.ms/windowsappsdk/2.3/2.3.1/windowsappruntimeinstall-x64.exe";
-    private const uint WindowsAppSdkMajorMinorVersion = 0x00020003;
-    private const ulong WindowsAppSdkMinimumVersion = 0x0002000300010000UL;
+    private const string WindowsAppRuntimeDownloadUrl = "https://aka.ms/windowsappsdk/2.5/2.5.1/windowsappruntimeinstall-x64.exe";
+    private const uint WindowsAppSdkMajorMinorVersion = 0x00020005;
+    private const ulong WindowsAppSdkMinimumVersion = 0x0002000500010000UL;
 
     [STAThread]
     private static int Main(string[] args)
@@ -277,7 +277,7 @@ internal static class Program
 
         if (isWindowsAppRuntimeMissing)
         {
-            message.Append("- Windows App Runtime 2.3.1 (x64)\r\n");
+            message.Append("- Windows App Runtime 2.5.1 (x64)\r\n");
         }
 
         message.Append("\r\n");
@@ -301,7 +301,7 @@ internal static class Program
 
             if (isWindowsAppRuntimeMissing && !windowsAppDownloadStarted)
             {
-                message.Append("- Windows App Runtime 2.3.1: ");
+                message.Append("- Windows App Runtime 2.5.1: ");
                 message.Append(WindowsAppRuntimeDownloadUrl);
                 message.Append("\r\n");
             }
