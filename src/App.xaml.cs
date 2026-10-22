@@ -32,6 +32,8 @@ public partial class App : Microsoft.UI.Xaml.Application
     {
         try
         {
+            // 先关闭已有实例再读取设置，确保读到旧实例退出时保存的最新内容。
+            await SingleInstance.CloseOtherInstancesAsync();
             Services = await AppServices.CreateAsync();
             var automationLookupText = Environment.GetEnvironmentVariable("AITRANSLATOR_AUTOMATION_QUICK_LOOKUP_TEXT");
             if (!string.IsNullOrWhiteSpace(automationLookupText))
@@ -47,7 +49,12 @@ public partial class App : Microsoft.UI.Xaml.Application
             }
 
             MainWindow = new MainWindow(Services);
-            MainWindow.ShowAndFocus();
+            // 开机自启时只驻留托盘，不弹出主窗口。
+            if (!StartupRegistration.IsAutostartLaunch)
+            {
+                MainWindow.ShowAndFocus();
+            }
+
             if (string.Equals(Environment.GetEnvironmentVariable("AITRANSLATOR_AUTOMATION_CAPTURE"), "1",
                     StringComparison.Ordinal))
             {

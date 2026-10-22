@@ -60,6 +60,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ToggleMainWindow)] = "打开或隐藏主窗口",
         [nameof(ShowSelectionResults)] = "显示划词结果",
         [nameof(Speech)] = "发音",
+        [nameof(Startup)] = "启动",
+        [nameof(LaunchAtStartup)] = "开机时自动运行（驻留托盘）",
         [nameof(LocalData)] = "本地数据",
         [nameof(Ecdict)] = "ECDICT 离线英汉词典（MIT）",
         [nameof(ClearAiLookupCache)] = "清除 AI 查词缓存",
@@ -187,6 +189,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ToggleMainWindow)] = "開啟或隱藏主視窗",
         [nameof(ShowSelectionResults)] = "顯示劃詞結果",
         [nameof(Speech)] = "發音",
+        [nameof(Startup)] = "啟動",
+        [nameof(LaunchAtStartup)] = "開機時自動執行（常駐系統匣）",
         [nameof(LocalData)] = "本機資料",
         [nameof(Ecdict)] = "ECDICT 離線英漢詞典（MIT）",
         [nameof(ClearAiLookupCache)] = "清除 AI 查詞快取",
@@ -314,6 +318,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ToggleMainWindow)] = "Show or hide main window",
         [nameof(ShowSelectionResults)] = "Show selected-text result",
         [nameof(Speech)] = "Pronounce",
+        [nameof(Startup)] = "Startup",
+        [nameof(LaunchAtStartup)] = "Run at startup (stay in tray)",
         [nameof(LocalData)] = "Local data",
         [nameof(Ecdict)] = "ECDICT offline English-Chinese dictionary (MIT)",
         [nameof(ClearAiLookupCache)] = "Clear AI lookup cache",
@@ -479,6 +485,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ToggleMainWindow => Value();
     public string ShowSelectionResults => Value();
     public string Speech => Value();
+    public string Startup => Value();
+    public string LaunchAtStartup => Value();
     public string LocalData => Value();
     public string Ecdict => Value();
     public string ClearAiLookupCache => Value();

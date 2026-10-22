@@ -744,6 +744,13 @@
 
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
+                                <StackPanel Spacing="12">
+                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.Startup}" />
+                                    <CheckBox x:Name="LaunchAtStartupCheckBox" Content="{Binding Localization.LaunchAtStartup}" />
+                                </StackPanel>
+
+                                <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
+
                                 <Grid Margin="0,0,0,20" ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

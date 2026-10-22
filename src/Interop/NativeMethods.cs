@@ -33,6 +33,7 @@ internal static class NativeMethods
     internal const uint WmContextMenu = 0x007B;
     internal const uint WmApplyHotkeys = 0x8001;
     internal const uint WmTrayIcon = 0x8002;
+    internal const nint HwndBroadcast = 0xFFFF;
     internal const nuint SizeRestored = 0;
     internal const nuint SizeMinimized = 1;
     internal const nuint SizeMaximized = 2;

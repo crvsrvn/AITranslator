@@ -367,6 +367,12 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            if (SingleInstance.IsExitRequest(message))
+            {
+                RequestExitApplication();
+                return 0;
+            }
+
             if (message == NativeMethods.WmSize)
             {
                 if (wParam == NativeMethods.SizeMinimized)
@@ -1112,6 +1118,7 @@ public sealed partial class MainWindow : Window
             SelectionShortcutBox.Text = settings.SelectionShortcut;
             SpeakShortcutBox.Text = settings.SpeakShortcut;
             CaptureShortcutBox.Text = settings.CaptureShortcut;
+            LaunchAtStartupCheckBox.IsChecked = StartupRegistration.IsEnabled();
         }
         catch (Exception exception)
         {
@@ -1242,6 +1249,13 @@ public sealed partial class MainWindow : Window
         }
 
         ApplyAppearance(settings);
+        // 仅在与实际状态不一致时改写，避免误删其他安装位置写入的启动项。
+        var launchAtStartup = LaunchAtStartupCheckBox.IsChecked == true;
+        if (launchAtStartup != StartupRegistration.IsEnabled())
+        {
+            StartupRegistration.SetEnabled(launchAtStartup);
+        }
+
         ViewModel.StatusText = _services.Localization.SettingsSaved;
     }
 
