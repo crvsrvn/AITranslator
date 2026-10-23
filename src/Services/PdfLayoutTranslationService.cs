@@ -1,6 +1,7 @@
 using AITranslator.Models;
 using System.Text;
 using System.Text.RegularExpressions;
+using PdfSharp;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
@@ -21,6 +22,9 @@ internal sealed class PdfLayoutTranslationService
 {
     private readonly TranslationOrchestrator _translator;
     private readonly OcrService _ocr;
+
+    // PDFsharp 6.5 起必须先选定许可证，否则读写 PDF 时抛出 "The loaded license is not valid"；本项目采用 AGPL-3.0。
+    static PdfLayoutTranslationService() => PdfSharpLicense.SetAgplLicense();
 
     public PdfLayoutTranslationService(TranslationOrchestrator translator, OcrService ocr)
     {
