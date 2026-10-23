@@ -22,15 +22,25 @@ internal static class DocumentTextLayout
             "Arial"
         };
 
+        // 没有字体能覆盖全部字符时（如中文混排 ∼ 等符号）选缺字最少的，个别字符缺字形不应中断整份文件的翻译。
+        string? bestFamily = null;
+        var fewestMissing = int.MaxValue;
         foreach (var candidate in candidates.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            if (SupportsText(candidate, text))
+            var missing = CountMissingGlyphs(candidate, text);
+            if (missing == 0)
             {
                 return candidate;
             }
+
+            if (missing < fewestMissing)
+            {
+                bestFamily = candidate;
+                fewestMissing = missing;
+            }
         }
 
-        throw new InvalidOperationException("系统中没有可用于文件译文的字体。");
+        return bestFamily ?? throw new InvalidOperationException("系统中没有可用于文件译文的字体。");
     }
 
     public static SizeF MeasureText(string text, string family, float size, FontStyle style)
@@ -120,7 +130,8 @@ internal static class DocumentTextLayout
         return proposed;
     }
 
-    private static bool SupportsText(string family, string text)
+    /// <summary>返回字体缺少字形的字符数；字体不可用时返回 int.MaxValue。</summary>
+    private static int CountMissingGlyphs(string family, string text)
     {
         try
         {
@@ -136,19 +147,20 @@ internal static class DocumentTextLayout
                 var result = GetGlyphIndices(deviceContext, text, text.Length, glyphs, MarkMissingGlyphs);
                 if (result == uint.MaxValue)
                 {
-                    return false;
+                    return int.MaxValue;
                 }
 
+                var missing = 0;
                 for (var index = 0; index < text.Length; index++)
                 {
                     if (!char.IsWhiteSpace(text[index]) && !char.IsControl(text[index]) && !char.IsSurrogate(text[index]) &&
                         glyphs[index] == ushort.MaxValue)
                     {
-                        return false;
+                        missing++;
                     }
                 }
 
-                return true;
+                return missing;
             }
             finally
             {
@@ -159,7 +171,7 @@ internal static class DocumentTextLayout
         }
         catch (ArgumentException)
         {
-            return false;
+            return int.MaxValue;
         }
     }
 

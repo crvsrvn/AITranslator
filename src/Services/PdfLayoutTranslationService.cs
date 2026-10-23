@@ -1083,7 +1083,7 @@ internal sealed class PdfLayoutTranslationService
 
             foreach (var letter in letters)
             {
-                AppendSpan(spans, letter.Value, letter);
+                AppendSpan(spans, ExpandLigatures(letter.Value), letter);
                 previousLetter = letter;
             }
         }
@@ -1149,6 +1149,10 @@ internal sealed class PdfLayoutTranslationService
     }
 
     private static bool ShouldTranslate(string value) => value.Any(char.IsLetter);
+
+    // LaTeX 等排版的 PDF 常把 fi、fl 等提取为连字字符（U+FB00–FB06），中文字体没有这些字形，展开为普通字母。
+    private static string ExpandLigatures(string value) =>
+        value.Any(c => c is >= '\uFB00' and <= '\uFB06') ? value.Normalize(NormalizationForm.FormKC) : value;
 
     private static bool IsCjk(char value) => value is >= '\u3400' and <= '\u9FFF';
 
