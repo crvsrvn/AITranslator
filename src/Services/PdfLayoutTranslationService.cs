@@ -59,8 +59,9 @@ internal sealed class PdfLayoutTranslationService
             var sourcePage = sourceDocument.GetPage(pageIndex + 1);
             var outputPage = outputDocument.Pages[pageIndex];
             var geometry = CreatePageGeometry(outputPage);
-            var pageGraphics = AnalyzePageGraphics(sourcePage.Operations, outputPage);
-            var lines = ResolveTextVisibility(ExtractLines(sourcePage), pageGraphics);
+            var textSequences = MapTextSequences(outputPage, sourcePage.Operations);
+            var pageGraphics = AnalyzePageGraphics(sourcePage.Operations, outputPage, textSequences);
+            var lines = ResolveTextVisibility(ExtractLines(sourcePage, textSequences.Values.ToHashSet()), pageGraphics);
             if (lines.Any(line => line.ImageOperationIndexes.Count > 0))
             {
                 // 文字对象本身透明、由图片呈现时，PdfPig 读到的颜色不可信，改为从渲染结果取样。
@@ -94,7 +95,7 @@ internal sealed class PdfLayoutTranslationService
                 }
             }
 
-            pagePlans.Add(new PdfPagePlan(pageIndex, sourcePage.Height, vectorLines, blocks, sourcePage.Operations, imageLines));
+            pagePlans.Add(new PdfPagePlan(pageIndex, sourcePage.Height, vectorLines, blocks, sourcePage.Operations, textSequences, imageLines));
         }
 
         if (requestUnits.Count == 0)
@@ -131,7 +132,8 @@ internal sealed class PdfLayoutTranslationService
 
                 var hiddenOperations = translatedBlocks.SelectMany(block => block.Lines)
                     .SelectMany(line => line.ImageOperationIndexes).ToHashSet();
-                ReplacePageTextObjects(outputPage, pagePlan.Operations, replacements, hiddenOperations, pagePlan.PageIndex + 1);
+                ReplacePageTextObjects(outputPage, pagePlan.Operations, pagePlan.TextSequences, replacements, hiddenOperations,
+                    pagePlan.PageIndex + 1);
             }
 
             if (pagePlan.ImageLines.Count > 0)
@@ -171,13 +173,13 @@ internal sealed class PdfLayoutTranslationService
     /// <summary>
     /// 遍历页面内容流，找出绘制时没有任何可见笔墨（Tr 3/7 或 ExtGState 透明度为 0）的文字序列，并记录每个图片绘制的位置。
     /// </summary>
-    private static PdfPageGraphics AnalyzePageGraphics(IReadOnlyList<IGraphicsStateOperation> operations, PdfPage page)
+    private static PdfPageGraphics AnalyzePageGraphics(IReadOnlyList<IGraphicsStateOperation> operations, PdfPage page,
+        IReadOnlyDictionary<int, int> textSequences)
     {
         var transparentSequences = new HashSet<int>();
         var imageDraws = new List<PdfImageDraw>();
         var stateStack = new Stack<PdfGraphicsState>();
         var state = PdfGraphicsState.Initial;
-        var textSequence = 1;
         for (var index = 0; index < operations.Count; index++)
         {
             var operation = operations[index];
@@ -204,18 +206,67 @@ internal sealed class PdfLayoutTranslationService
                     break;
             }
 
-            if (IsTextDrawingOperation(operation))
+            if (IsTextDrawingOperation(operation) && !state.PaintsText)
             {
-                if (!state.PaintsText)
-                {
-                    transparentSequences.Add(textSequence);
-                }
-
-                textSequence++;
+                transparentSequences.Add(textSequences[index]);
             }
         }
 
         return new PdfPageGraphics(transparentSequences, imageDraws);
+    }
+
+    /// <summary>
+    /// 计算页面顶层每个文字绘制操作（按操作下标）对应的 PdfPig TextSequence。PdfPig 也为表单 XObject（如 LaTeX 插入的矢量图）
+    /// 内的文字编号，而页面内容流中只有调用表单的 Do 操作，因此遇到表单时要跳过其内部文字占用的序号。
+    /// </summary>
+    private static IReadOnlyDictionary<int, int> MapTextSequences(PdfPage page, IReadOnlyList<IGraphicsStateOperation> operations)
+    {
+        var xObjects = page.Resources.Elements.GetDictionary("/XObject");
+        var result = new Dictionary<int, int>();
+        var textSequence = 0;
+        for (var index = 0; index < operations.Count; index++)
+        {
+            if (IsTextDrawingOperation(operations[index]))
+            {
+                result[index] = ++textSequence;
+            }
+            else if (operations[index] is InvokeNamedXObject xObject)
+            {
+                textSequence += CountFormTextOperations(xObjects, "/" + xObject.Name.Data, 0);
+            }
+        }
+
+        return result;
+    }
+
+    private static int CountFormTextOperations(PdfDictionary? xObjects, string name, int depth)
+    {
+        if (xObjects?.Elements.GetDictionary(name) is not { Stream: not null } form || form.Elements.GetName("/Subtype") != "/Form")
+        {
+            return 0;
+        }
+
+        if (depth >= 32)
+        {
+            throw new NotSupportedException("PDF 表单嵌套层级过深，无法安全翻译。");
+        }
+
+        // 表单没有自己的资源字典时沿用调用方的资源。
+        var formXObjects = form.Elements.GetDictionary("/Resources")?.Elements.GetDictionary("/XObject") ?? xObjects;
+        var count = 0;
+        foreach (var operation in ContentReader.ReadContent(form.Stream.UnfilteredValue).OfType<COperator>())
+        {
+            if (IsTextDrawingOperation(operation))
+            {
+                count++;
+            }
+            else if (operation.OpCode.OpCodeName == OpCodeName.Do && operation.Operands.Count > 0 && operation.Operands[0] is CName nested)
+            {
+                count += CountFormTextOperations(formXObjects, nested.Name, depth + 1);
+            }
+        }
+
+        return count;
     }
 
     private static PdfGraphicsState ApplyExtGState(PdfGraphicsState state, PdfDictionary? extGState)
@@ -666,7 +717,8 @@ internal sealed class PdfLayoutTranslationService
     }
 
     private static void ReplacePageTextObjects(PdfPage page, IReadOnlyList<IGraphicsStateOperation> operations,
-        IReadOnlyList<PdfBlockReplacement> replacements, IReadOnlySet<int> hiddenOperationIndexes, int pageNumber)
+        IReadOnlyDictionary<int, int> textSequences, IReadOnlyList<PdfBlockReplacement> replacements, IReadOnlySet<int> hiddenOperationIndexes,
+        int pageNumber)
     {
         var replacementSequences = new HashSet<int>();
         var mergedReplacements = MergeOverlappingReplacements(replacements);
@@ -684,7 +736,6 @@ internal sealed class PdfLayoutTranslationService
         var hiddenSequences = new HashSet<int>();
         var renderingModeStack = new Stack<int>();
         var renderingMode = 0;
-        var textSequence = 1;
         var invisibleMode = new SetTextRenderingMode(3);
         var invisibleClippingMode = new SetTextRenderingMode(7);
         for (var index = 0; index < operations.Count; index++)
@@ -696,21 +747,12 @@ internal sealed class PdfLayoutTranslationService
                 continue;
             }
 
-            if (IsTextDrawingOperation(operation))
+            if (IsTextDrawingOperation(operation) && replacementSequences.Contains(textSequences[index]))
             {
-                if (replacementSequences.Contains(textSequence))
-                {
-                    (renderingMode >= 4 ? invisibleClippingMode : invisibleMode).Write(stream);
-                    operation.Write(stream);
-                    new SetTextRenderingMode(renderingMode).Write(stream);
-                    hiddenSequences.Add(textSequence);
-                }
-                else
-                {
-                    operation.Write(stream);
-                }
-
-                textSequence++;
+                (renderingMode >= 4 ? invisibleClippingMode : invisibleMode).Write(stream);
+                operation.Write(stream);
+                new SetTextRenderingMode(renderingMode).Write(stream);
+                hiddenSequences.Add(textSequences[index]);
             }
             else
             {
@@ -1015,9 +1057,13 @@ internal sealed class PdfLayoutTranslationService
         return builders.Select(builder => builder.Build()).ToArray();
     }
 
-    private static IReadOnlyList<PdfTextLine> ExtractLines(Page page)
+    private static IReadOnlyList<PdfTextLine> ExtractLines(Page page, IReadOnlySet<int> topLevelSequences)
     {
-        var words = page.GetWords().Where(word => !string.IsNullOrWhiteSpace(word.Text)).ToArray();
+        // 插图（表单 XObject）内的文字不在页面内容流中，无法原位隐藏，保留原文。其中可能有被裁剪掉的整页隐形文字，
+        // 坐标与正文重叠，须在分词前排除，避免与正文合并成一行。
+        var letters = page.Letters.Where(letter => topLevelSequences.Contains(letter.TextSequence)).ToArray();
+        var words = UglyToad.PdfPig.Util.DefaultWordExtractor.Instance.GetWords(letters)
+            .Where(word => !string.IsNullOrWhiteSpace(word.Text)).ToArray();
         var horizontalRows = new List<WordRow>();
         var result = new List<PdfTextLine>();
         foreach (var word in words)
@@ -1300,6 +1346,7 @@ internal sealed class PdfLayoutTranslationService
         IReadOnlyList<PdfTextLine> Lines,
         IReadOnlyList<PdfTextBlock> Blocks,
         IReadOnlyList<IGraphicsStateOperation> Operations,
+        IReadOnlyDictionary<int, int> TextSequences,
         IReadOnlyList<PdfImageTextLine> ImageLines);
 
     private sealed record PdfBlockReplacement(IReadOnlyList<int> TextSequences, byte[] Content);
