@@ -20,7 +20,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(CaptureTranslation)] = "截屏翻译",
         [nameof(ReasoningEffort)] = "思考强度",
         [nameof(TranslateImages)] = "翻译图像",
-        [nameof(InputPlaceholder)] = "输入单词或文本",
+        [nameof(InputPlaceholder)] = "输入单词或文本，按 Enter 翻译",
         [nameof(OfflineEnglishChineseDictionary)] = "离线英汉词典",
         [nameof(OfflineDictionary)] = "离线词典",
         [nameof(PronounceIpa)] = "按 IPA 发音",
@@ -107,6 +107,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "已收到有效响应：{0}",
         [nameof(ApiTestSuccessUnsaved)] = "API 连接测试成功（设置未保存）",
         [nameof(ConnectionFailed)] = "连接失败",
+        [nameof(Error)] = "出错了",
         [nameof(RefreshModels)] = "刷新模型列表",
         [nameof(ModelsRefreshed)] = "已从服务获取 {0} 个模型；点击保存后才会生效。",
         [nameof(ModelsRefreshFailed)] = "获取模型列表失败",
@@ -149,7 +150,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(CaptureTranslation)] = "螢幕擷取翻譯",
         [nameof(ReasoningEffort)] = "思考強度",
         [nameof(TranslateImages)] = "翻譯圖像",
-        [nameof(InputPlaceholder)] = "輸入單字或文字",
+        [nameof(InputPlaceholder)] = "輸入單字或文字，按 Enter 翻譯",
         [nameof(OfflineEnglishChineseDictionary)] = "離線英漢詞典",
         [nameof(OfflineDictionary)] = "離線詞典",
         [nameof(PronounceIpa)] = "按 IPA 發音",
@@ -236,6 +237,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "已收到有效回應：{0}",
         [nameof(ApiTestSuccessUnsaved)] = "API 連線測試成功（設定尚未儲存）",
         [nameof(ConnectionFailed)] = "連線失敗",
+        [nameof(Error)] = "出錯了",
         [nameof(RefreshModels)] = "重新整理模型清單",
         [nameof(ModelsRefreshed)] = "已從服務取得 {0} 個模型；按一下儲存後才會生效。",
         [nameof(ModelsRefreshFailed)] = "取得模型清單失敗",
@@ -278,7 +280,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(CaptureTranslation)] = "Screen translation",
         [nameof(ReasoningEffort)] = "Reasoning effort",
         [nameof(TranslateImages)] = "Translate images",
-        [nameof(InputPlaceholder)] = "Enter a word or text",
+        [nameof(InputPlaceholder)] = "Type a word or text, press Enter to translate",
         [nameof(OfflineEnglishChineseDictionary)] = "Offline English-Chinese dictionary",
         [nameof(OfflineDictionary)] = "Offline dictionary",
         [nameof(PronounceIpa)] = "Pronounce from IPA",
@@ -365,6 +367,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         [nameof(ValidResponse)] = "Received a valid response: {0}",
         [nameof(ApiTestSuccessUnsaved)] = "API connection test succeeded (settings not saved)",
         [nameof(ConnectionFailed)] = "Connection failed",
+        [nameof(Error)] = "Error",
         [nameof(RefreshModels)] = "Refresh models",
         [nameof(ModelsRefreshed)] = "Fetched {0} models from the service; save settings to apply.",
         [nameof(ModelsRefreshFailed)] = "Failed to fetch models",
@@ -532,6 +535,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
     public string ValidResponse => Value();
     public string ApiTestSuccessUnsaved => Value();
     public string ConnectionFailed => Value();
+    public string Error => Value();
     public string RefreshModels => Value();
     public string ModelsRefreshed => Value();
     public string ModelsRefreshFailed => Value();

@@ -7,7 +7,11 @@ namespace AITranslator.Helpers;
 
 public static class AppearanceHelper
 {
-    public static void Apply(FrameworkElement root, AppSettings settings)
+    // 标记翻译内容（输入、译文、释义）的 Tag，其子树始终使用用户设置的字号。
+    private const string TranslationContentTag = "TranslationContent";
+
+    /// <param name="chromeSizeReduction">翻译内容以外的界面文字比用户设置的字号小多少。</param>
+    public static void Apply(FrameworkElement root, AppSettings settings, double chromeSizeReduction = 0)
     {
         root.RequestedTheme = settings.Theme switch
         {
@@ -20,11 +24,16 @@ public static class AppearanceHelper
         var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.FontFamily)
             ? "Microsoft YaHei UI"
             : settings.FontFamily);
-        ApplyTypography(root, fontFamily, bodySize);
+        ApplyTypography(root, fontFamily, bodySize - chromeSizeReduction, bodySize);
     }
 
-    private static void ApplyTypography(DependencyObject element, FontFamily fontFamily, double bodySize)
+    private static void ApplyTypography(DependencyObject element, FontFamily fontFamily, double bodySize, double contentSize)
     {
+        if (element is FrameworkElement { Tag: TranslationContentTag })
+        {
+            bodySize = contentSize;
+        }
+
         switch (element)
         {
             case TextBlock textBlock:
@@ -34,14 +43,31 @@ public static class AppearanceHelper
             case Control control:
                 control.FontFamily = fontFamily;
                 control.FontSize = bodySize;
+                if (control is ComboBox comboBox)
+                {
+                    comboBox.ItemContainerStyle = CreateComboBoxItemStyle(fontFamily, bodySize);
+                }
+
                 break;
         }
 
         for (var index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
         {
-            ApplyTypography(VisualTreeHelper.GetChild(element, index), fontFamily, bodySize);
+            ApplyTypography(VisualTreeHelper.GetChild(element, index), fontFamily, bodySize, contentSize);
         }
     }
+
+    // 下拉列表项位于独立弹层，遍历可视树时访问不到，改由容器样式设置字体。
+    private static Style CreateComboBoxItemStyle(FontFamily fontFamily, double fontSize) =>
+        new(typeof(ComboBoxItem))
+        {
+            BasedOn = (Style)Application.Current.Resources["DefaultComboBoxItemStyle"],
+            Setters =
+            {
+                new Setter(Control.FontFamilyProperty, fontFamily),
+                new Setter(Control.FontSizeProperty, fontSize)
+            }
+        };
 
     private static double ResolveTextSize(TextBlock textBlock, double bodySize)
     {

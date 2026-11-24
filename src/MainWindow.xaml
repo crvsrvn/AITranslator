@@ -9,30 +9,38 @@
         VerticalContentAlignment="Stretch"
         Background="{ThemeResource AppBackgroundBrush}"
         Foreground="{ThemeResource AppTextBrush}">
+        <ContentControl.Resources>
+            <ResourceDictionary>
+                <ResourceDictionary.MergedDictionaries>
+                    <ResourceDictionary Source="ms-appx:///Microsoft.UI.Xaml/DensityStyles/Compact.xaml" />
+                </ResourceDictionary.MergedDictionaries>
+                <!-- 与下拉框文字左缘对齐 -->
+                <Thickness x:Key="TextControlThemePadding">12,4,6,4</Thickness>
+            </ResourceDictionary>
+        </ContentControl.Resources>
         <Grid Background="{ThemeResource AppBackgroundBrush}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="48" />
+                <RowDefinition Height="32" />
                 <RowDefinition Height="*" />
-                <RowDefinition Height="34" />
             </Grid.RowDefinitions>
 
             <Grid
                 x:Name="AppTitleBar"
-                Padding="16,0"
+                Padding="12,0"
                 Background="Transparent">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Image
-                    Width="28"
-                    Height="28"
+                    Width="20"
+                    Height="20"
                     VerticalAlignment="Center"
                     Source="Assets/AITranslator.png"
                     Stretch="Uniform" />
                 <TextBlock
                     Grid.Column="1"
-                    Margin="10,0,0,0"
+                    Margin="8,0,0,0"
                     VerticalAlignment="Center"
                     FontSize="14"
                     FontWeight="SemiBold"
@@ -43,6 +51,7 @@
                 x:Name="Navigation"
                 Grid.Row="1"
                 AlwaysShowHeader="False"
+                CompactPaneLength="40"
                 IsBackButtonVisible="Collapsed"
                 IsSettingsVisible="True"
                 IsTitleBarAutoPaddingEnabled="False"
@@ -50,7 +59,7 @@
                 Background="Transparent"
                 IsPaneOpen="False"
                 OpenPaneLength="176"
-                PaneDisplayMode="Left"
+                PaneDisplayMode="LeftCompact"
                 VerticalContentAlignment="Stretch"
                 SelectionChanged="Navigation_SelectionChanged">
                 <NavigationView.MenuItems>
@@ -81,137 +90,96 @@
                     </Grid.RowDefinitions>
 
                     <Border
-                        Padding="28,8"
+                        Padding="16,4"
                         BorderBrush="{ThemeResource AppBorderBrush}"
                         BorderThickness="0,0,0,1">
-                        <Grid HorizontalAlignment="Right" ColumnSpacing="12">
+                        <Grid ColumnSpacing="8">
+                            <!-- “*”列权重极小，只吸收其余列达到 MaxWidth 后的剩余宽度；窗口变窄时其余列收缩。 -->
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="100*" MaxWidth="110" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="100*" MaxWidth="110" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="100*" MaxWidth="120" />
                             </Grid.ColumnDefinitions>
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ComboBox
-                                    x:Name="GlobalSourceLanguageComboBox"
-                                    Width="160"
-                                    Height="32"
-                                    AutomationProperties.AutomationId="GlobalSourceLanguageComboBox"
-                                    AutomationProperties.Name="{Binding Localization.SourceLanguage}"
-                                    ItemsSource="{Binding SourceLanguages}"
-                                    SelectedItem="{Binding SelectedSourceLanguage, Mode=TwoWay}"
-                                    ToolTipService.ToolTip="{Binding Localization.SourceLanguage}" />
-                                <Button
-                                    x:Name="GlobalSwapLanguagesButton"
-                                    Grid.Column="1"
-                                    Width="40"
-                                    Height="32"
-                                    AutomationProperties.AutomationId="GlobalSwapLanguagesButton"
-                                    AutomationProperties.Name="{Binding Localization.SwapLanguages}"
-                                    Command="{Binding SwapLanguagesCommand}"
-                                    ToolTipService.ToolTip="{Binding Localization.SwapLanguages}">
-                                    <SymbolIcon Symbol="Switch" />
-                                </Button>
-                                <ComboBox
-                                    x:Name="GlobalTargetLanguageComboBox"
-                                    Grid.Column="2"
-                                    Width="160"
-                                    Height="32"
-                                    AutomationProperties.AutomationId="GlobalTargetLanguageComboBox"
-                                    AutomationProperties.Name="{Binding Localization.TargetLanguage}"
-                                    ItemsSource="{Binding TargetLanguages}"
-                                    SelectedItem="{Binding SelectedTargetLanguage, Mode=TwoWay}"
-                                    ToolTipService.ToolTip="{Binding Localization.TargetLanguage}" />
-                            </Grid>
+                            <Button
+                                Width="32"
+                                Padding="0,2"
+                                VerticalAlignment="Stretch"
+                                AutomationProperties.AutomationId="CaptureTranslationButton"
+                                AutomationProperties.Name="{Binding Localization.CaptureTranslation}"
+                                Click="CaptureButton_Click"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                ToolTipService.ToolTip="{Binding Localization.CaptureTranslation}">
+                                <SymbolIcon Symbol="Camera" />
+                            </Button>
+                            <ComboBox
+                                x:Name="GlobalSourceLanguageComboBox"
+                                Grid.Column="2"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                AutomationProperties.AutomationId="GlobalSourceLanguageComboBox"
+                                AutomationProperties.Name="{Binding Localization.SourceLanguage}"
+                                ItemsSource="{Binding SourceLanguages}"
+                                SelectedItem="{Binding SelectedSourceLanguage, Mode=TwoWay}"
+                                ToolTipService.ToolTip="{Binding Localization.SourceLanguage}" />
+                            <Button
+                                x:Name="GlobalSwapLanguagesButton"
+                                Grid.Column="3"
+                                Width="32"
+                                Padding="0,2"
+                                VerticalAlignment="Stretch"
+                                AutomationProperties.AutomationId="GlobalSwapLanguagesButton"
+                                AutomationProperties.Name="{Binding Localization.SwapLanguages}"
+                                Command="{Binding SwapLanguagesCommand}"
+                                ToolTipService.ToolTip="{Binding Localization.SwapLanguages}">
+                                <SymbolIcon Symbol="Switch" />
+                            </Button>
+                            <ComboBox
+                                x:Name="GlobalTargetLanguageComboBox"
+                                Grid.Column="4"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch"
+                                AutomationProperties.AutomationId="GlobalTargetLanguageComboBox"
+                                AutomationProperties.Name="{Binding Localization.TargetLanguage}"
+                                ItemsSource="{Binding TargetLanguages}"
+                                SelectedItem="{Binding SelectedTargetLanguage, Mode=TwoWay}"
+                                ToolTipService.ToolTip="{Binding Localization.TargetLanguage}" />
                             <Border
-                                Grid.Column="1"
+                                Grid.Column="5"
                                 Width="1"
-                                Height="22"
+                                Height="18"
                                 VerticalAlignment="Center"
                                 Background="{ThemeResource AppBorderBrush}" />
-                            <Grid Grid.Column="2" ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    AutomationProperties.AutomationId="GlobalIndustryContextLabel"
-                                    Foreground="{ThemeResource AppMutedTextBrush}"
-                                    Text="{Binding Localization.IndustryContext}" />
-                                <TextBox
-                                    x:Name="GlobalIndustryContextBox"
-                                    Grid.Column="1"
-                                    Width="182"
-                                    Height="32"
-                                    AutomationProperties.AutomationId="GlobalIndustryContextBox"
-                                    MaxLength="120"
-                                    PlaceholderText="{Binding Localization.General}"
-                                    TextChanged="GlobalIndustryContextBox_TextChanged" />
-                            </Grid>
+                            <TextBlock
+                                Grid.Column="6"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="GlobalIndustryContextLabel"
+                                Foreground="{ThemeResource AppMutedTextBrush}"
+                                Text="{Binding Localization.IndustryContext}" />
+                            <TextBox
+                                x:Name="GlobalIndustryContextBox"
+                                Grid.Column="7"
+                                AutomationProperties.AutomationId="GlobalIndustryContextBox"
+                                MaxLength="120"
+                                PlaceholderText="{Binding Localization.General}"
+                                TextChanged="GlobalIndustryContextBox_TextChanged" />
                         </Grid>
                     </Border>
 
                     <Grid
                         x:Name="LookupPage"
                         Grid.Row="1"
-                        Padding="28,16,28,24">
+                        Padding="16,12,16,16">
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Style="{StaticResource PageTitleStyle}" Text="{Binding Localization.Translation}" />
-                            <Button
-                                Grid.Column="1"
-                                Width="44"
-                                Height="40"
-                                Margin="0,0,12,0"
-                                Padding="0"
-                                AutomationProperties.AutomationId="CaptureTranslationButton"
-                                AutomationProperties.Name="{Binding Localization.CaptureTranslation}"
-                                Click="CaptureButton_Click"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                ToolTipService.ToolTip="{Binding Localization.CaptureTranslation}">
-                                <SymbolIcon
-                                    Width="20"
-                                    Height="20"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Symbol="Camera" />
-                            </Button>
-                            <StackPanel
-                                x:Name="TranslationReasoningPanel"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                AutomationProperties.AutomationId="TranslationReasoningPanel"
-                                Orientation="Horizontal"
-                                Spacing="8">
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    AutomationProperties.AutomationId="TranslationReasoningLabel"
-                                    Text="{Binding Localization.ReasoningEffort}" />
-                                <ComboBox
-                                    x:Name="TranslationReasoningEffortComboBox"
-                                    Width="150"
-                                    Height="32"
-                                    AutomationProperties.AutomationId="TranslationReasoningEffortComboBox"
-                                    SelectionChanged="ReasoningEffortComboBox_SelectionChanged" />
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid Grid.Row="1" Margin="0,14,0,14" ColumnSpacing="10">
+                        <Grid Margin="0,0,0,8" ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -219,33 +187,49 @@
                             <TextBox
                                 x:Name="LookupInput"
                                 MaxHeight="110"
-                                MinHeight="68"
-                                MinWidth="260"
+                                MinHeight="56"
+                                MinWidth="160"
                                 AcceptsReturn="True"
                                 KeyDown="LookupInput_KeyDown"
+                                Tag="TranslationContent"
                                 PlaceholderText="{Binding Localization.InputPlaceholder}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 TextWrapping="Wrap" />
-                            <Button
+                            <ProgressRing
+                                Width="16"
+                                Height="16"
+                                Margin="8"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                IsActive="{Binding IsBusy}"
+                                IsHitTestVisible="False" />
+                            <StackPanel
+                                x:Name="TranslationReasoningPanel"
                                 Grid.Column="1"
-                                Command="{Binding SmartTranslateCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}">
-                                <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <SymbolIcon Symbol="Find" />
-                                    <TextBlock Text="{Binding Localization.Translation}" />
-                                </StackPanel>
-                            </Button>
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="TranslationReasoningPanel"
+                                Spacing="4">
+                                <TextBlock
+                                    AutomationProperties.AutomationId="TranslationReasoningLabel"
+                                    Foreground="{ThemeResource AppMutedTextBrush}"
+                                    Text="{Binding Localization.ReasoningEffort}" />
+                                <ComboBox
+                                    x:Name="TranslationReasoningEffortComboBox"
+                                    Width="130"
+                                    AutomationProperties.AutomationId="TranslationReasoningEffortComboBox"
+                                    SelectionChanged="ReasoningEffortComboBox_SelectionChanged" />
+                            </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="2" ColumnSpacing="14">
+                        <Grid Grid.Row="1" ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1*" />
                                 <ColumnDefinition Width="1*" />
                             </Grid.ColumnDefinitions>
 
                             <Border
-                                Padding="18"
+                                Padding="12"
                                 Style="{StaticResource ToolPanelStyle}"
                                 Visibility="{Binding LookupResultVisibility}">
                                 <Grid>
@@ -256,7 +240,7 @@
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
                                         <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.OfflineEnglishChineseDictionary}" />
-                                        <ItemsControl x:Name="DictionaryPronunciationItems" ItemsSource="{Binding DictionaryPronunciations}">
+                                        <ItemsControl x:Name="DictionaryPronunciationItems" ItemsSource="{Binding DictionaryPronunciations}" Tag="TranslationContent">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -280,9 +264,9 @@
                                     <Rectangle
                                         Grid.Row="1"
                                         Height="1"
-                                        Margin="0,14"
+                                        Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer Grid.Row="2">
+                                    <ScrollViewer Grid.Row="2" Tag="TranslationContent">
                                         <TextBlock
                                             Foreground="{ThemeResource AppTextBrush}"
                                             IsTextSelectionEnabled="True"
@@ -294,7 +278,7 @@
 
                             <Border
                                 Grid.Column="1"
-                                Padding="18"
+                                Padding="12"
                                 Style="{StaticResource ToolPanelStyle}"
                                 Visibility="{Binding LookupResultVisibility}">
                                 <Grid>
@@ -302,11 +286,10 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
                                         <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.AiLookup}" />
-                                        <ItemsControl x:Name="AiPronunciationItems" ItemsSource="{Binding AiPronunciations}">
+                                        <ItemsControl x:Name="AiPronunciationItems" ItemsSource="{Binding AiPronunciations}" Tag="TranslationContent">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -330,9 +313,9 @@
                                     <Rectangle
                                         Grid.Row="1"
                                         Height="1"
-                                        Margin="0,14"
+                                        Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer Grid.Row="2">
+                                    <ScrollViewer Grid.Row="2" Tag="TranslationContent">
                                         <TextBlock
                                             Foreground="{ThemeResource AppTextBrush}"
                                             IsTextSelectionEnabled="True"
@@ -340,9 +323,9 @@
                                             TextWrapping="Wrap" />
                                     </ScrollViewer>
                                     <Button
-                                        Grid.Row="3"
-                                        Margin="0,10,0,0"
+                                        Padding="6,2"
                                         HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
                                         Click="CopyAiMeaningButton_Click"
                                         ToolTipService.ToolTip="{Binding Localization.CopyResult}">
                                         <SymbolIcon Symbol="Copy" />
@@ -351,8 +334,9 @@
                             </Border>
 
                             <Border
+                                x:Name="TextResultPanel"
                                 Grid.ColumnSpan="2"
-                                Padding="18"
+                                Padding="12"
                                 Style="{StaticResource ToolPanelStyle}"
                                 Visibility="{Binding TextResultVisibility}">
                                 <Grid>
@@ -360,15 +344,34 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="*" />
-                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.TranslationResult}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource SectionTitleStyle}"
+                                        Text="{Binding Localization.TranslationResult}" />
+                                    <StackPanel
+                                        HorizontalAlignment="Right"
+                                        Orientation="Horizontal"
+                                        Spacing="8">
+                                        <Button
+                                            Padding="6,2"
+                                            Command="{Binding SpeakTranslationCommand}"
+                                            ToolTipService.ToolTip="{Binding Localization.SpeakTranslation}">
+                                            <SymbolIcon Symbol="Volume" />
+                                        </Button>
+                                        <Button
+                                            Padding="6,2"
+                                            Click="CopyTranslationButton_Click"
+                                            ToolTipService.ToolTip="{Binding Localization.CopyTranslation}">
+                                            <SymbolIcon Symbol="Copy" />
+                                        </Button>
+                                    </StackPanel>
                                     <Rectangle
                                         Grid.Row="1"
                                         Height="1"
-                                        Margin="0,14"
+                                        Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer x:Name="TranslationResultScrollViewer" Grid.Row="2">
+                                    <ScrollViewer x:Name="TranslationResultScrollViewer" Grid.Row="2" Tag="TranslationContent">
                                         <TextBlock
                                             x:Name="TranslationResultText"
                                             Foreground="{ThemeResource AppTextBrush}"
@@ -376,23 +379,6 @@
                                             Text="{Binding TranslatedText}"
                                             TextWrapping="Wrap" />
                                     </ScrollViewer>
-                                    <StackPanel
-                                        Grid.Row="3"
-                                        Margin="0,10,0,0"
-                                        HorizontalAlignment="Right"
-                                        Orientation="Horizontal"
-                                        Spacing="4">
-                                        <Button
-                                            Command="{Binding SpeakTranslationCommand}"
-                                            ToolTipService.ToolTip="{Binding Localization.SpeakTranslation}">
-                                            <SymbolIcon Symbol="Volume" />
-                                        </Button>
-                                        <Button
-                                            Click="CopyTranslationButton_Click"
-                                            ToolTipService.ToolTip="{Binding Localization.CopyTranslation}">
-                                            <SymbolIcon Symbol="Copy" />
-                                        </Button>
-                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </Grid>
@@ -401,7 +387,7 @@
                     <Grid
                         x:Name="FilePage"
                         Grid.Row="1"
-                        Padding="28,20,28,24"
+                        Padding="16,12,16,16"
                         Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -426,7 +412,9 @@
                                 Spacing="8">
                                 <CheckBox
                                     x:Name="TranslateImagesCheckBox"
+                                    Padding="8,0,0,0"
                                     VerticalAlignment="Center"
+                                    VerticalContentAlignment="Center"
                                     AutomationProperties.AutomationId="TranslateImagesCheckBox"
                                     Content="{Binding Localization.TranslateImages}"
                                     IsChecked="{Binding TranslateImages, Mode=TwoWay}"
@@ -434,8 +422,8 @@
                                 <TextBlock VerticalAlignment="Center" Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="FileReasoningEffortComboBox"
-                                    Width="150"
-                                    Height="32"
+                                    Width="130"
+                                    VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="FileReasoningEffortComboBox"
                                     SelectionChanged="ReasoningEffortComboBox_SelectionChanged" />
                             </StackPanel>
@@ -444,9 +432,9 @@
                         <Border
                             x:Name="SelectedFilePanel"
                             Grid.Row="1"
-                            MinHeight="78"
-                            Margin="0,18,0,14"
-                            Padding="18"
+                            MinHeight="52"
+                            Margin="0,8"
+                            Padding="12"
                             AutomationProperties.AutomationId="SelectedFilePanel"
                             Style="{StaticResource ToolPanelStyle}">
                             <Grid ColumnSpacing="12">
@@ -474,7 +462,6 @@
                                 <Button
                                     x:Name="ChooseFileButton"
                                     Grid.Column="2"
-                                    Height="40"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="ChooseFileButton"
                                     Click="ChooseFileButton_Click">
@@ -486,7 +473,7 @@
                             </Grid>
                         </Border>
 
-                        <Grid Grid.Row="2" Margin="0,8,0,12" ColumnSpacing="8">
+                        <Grid Grid.Row="2" Margin="0,0,0,8" ColumnSpacing="8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -512,6 +499,7 @@
                             </Button>
                             <Button
                                 Grid.Column="2"
+                                Padding="11,5,11,6"
                                 Command="{Binding StartFileTranslationCommand}"
                                 Style="{StaticResource PrimaryButtonStyle}">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
@@ -524,8 +512,8 @@
                         <Border
                             x:Name="OutputFilePanel"
                             Grid.Row="3"
-                            MinHeight="78"
-                            Padding="18"
+                            MinHeight="52"
+                            Padding="12"
                             AutomationProperties.AutomationId="OutputFilePanel"
                             Style="{StaticResource ToolPanelStyle}">
                             <Grid ColumnSpacing="12">
@@ -554,7 +542,6 @@
                                 <Button
                                     x:Name="OpenOutputFolderButton"
                                     Grid.Column="2"
-                                    Height="40"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="OpenOutputFolderButton"
                                     AutomationProperties.Name="{Binding Localization.ShowInFolder}"
@@ -566,7 +553,6 @@
                                 <Button
                                     x:Name="OpenOutputFileButton"
                                     Grid.Column="3"
-                                    Height="40"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="OpenOutputFileButton"
                                     AutomationProperties.Name="{Binding Localization.OpenOutputFile}"
@@ -582,16 +568,16 @@
                     <Grid
                         x:Name="SettingsPage"
                         Grid.Row="1"
-                        Padding="28,20,28,24"
+                        Padding="16,12,16,16"
                         Visibility="Collapsed">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Style="{StaticResource PageTitleStyle}" Text="{Binding Localization.Settings}" />
-                        <ScrollViewer Grid.Row="1" Margin="0,18,0,0">
-                            <StackPanel HorizontalAlignment="Stretch" Spacing="24">
-                                <StackPanel Spacing="12">
+                        <ScrollViewer Grid.Row="1" Margin="0,8,0,0">
+                            <StackPanel HorizontalAlignment="Stretch" Spacing="16">
+                                <StackPanel Spacing="8">
                                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.TranslationApi}" />
                                     <ComboBox
                                         x:Name="ApiPresetComboBox"
@@ -651,7 +637,7 @@
 
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
-                                <StackPanel Spacing="12">
+                                <StackPanel Spacing="8">
                                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.Appearance}" />
                                     <Grid ColumnSpacing="12" RowSpacing="12">
                                         <Grid.ColumnDefinitions>
@@ -700,7 +686,7 @@
 
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
-                                <StackPanel Spacing="12">
+                                <StackPanel Spacing="8">
                                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.GlobalShortcuts}" />
                                     <Grid ColumnSpacing="12" RowSpacing="10">
                                         <Grid.ColumnDefinitions>
@@ -744,14 +730,18 @@
 
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
-                                <StackPanel Spacing="12">
+                                <StackPanel Spacing="8">
                                     <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.Startup}" />
-                                    <CheckBox x:Name="LaunchAtStartupCheckBox" Content="{Binding Localization.LaunchAtStartup}" />
+                                    <CheckBox
+                                        x:Name="LaunchAtStartupCheckBox"
+                                        Padding="8,0,0,0"
+                                        VerticalContentAlignment="Center"
+                                        Content="{Binding Localization.LaunchAtStartup}" />
                                 </StackPanel>
 
                                 <Rectangle Height="1" Fill="{ThemeResource AppBorderBrush}" />
 
-                                <Grid Margin="0,0,0,20" ColumnSpacing="12">
+                                <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
@@ -775,7 +765,8 @@
                                 </Grid>
 
                                 <Button
-                                    Margin="0,0,0,20"
+                                    Margin="0,0,0,8"
+                                    Padding="11,5,11,6"
                                     HorizontalAlignment="Left"
                                     Click="SaveSettingsButton_Click"
                                     Style="{StaticResource PrimaryButtonStyle}">
@@ -789,31 +780,6 @@
                     </Grid>
                 </Grid>
             </NavigationView>
-
-            <Border
-                Grid.Row="2"
-                Padding="12,0"
-                Background="{ThemeResource AppSubtleBrush}"
-                BorderBrush="{ThemeResource AppBorderBrush}"
-                BorderThickness="0,1,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <ProgressRing
-                        Width="16"
-                        Height="16"
-                        Margin="0,0,8,0"
-                        IsActive="{Binding IsBusy}" />
-                    <TextBlock
-                        Grid.Column="1"
-                        VerticalAlignment="Center"
-                        Foreground="{ThemeResource AppMutedTextBrush}"
-                        Text="{Binding StatusText}"
-                        TextTrimming="CharacterEllipsis" />
-                </Grid>
-            </Border>
         </Grid>
     </ContentControl>
 </Window>

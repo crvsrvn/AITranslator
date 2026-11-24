@@ -22,8 +22,9 @@ namespace AITranslator;
 public sealed partial class MainWindow : Window
 {
     private const nuint MainWindowSubclassId = 2;
-    private const int DefaultWindowWidth = 1180;
-    private const int DefaultWindowHeight = 780;
+    private const int DefaultWindowWidth = 860;
+    private const int DefaultWindowHeight = 560;
+    private const double ChromeFontSizeReduction = 3;
     private const int MinimumRestoredVisibleWidth = 160;
     private const int MinimumRestoredVisibleHeight = 48;
     private readonly AppServices _services;
@@ -37,6 +38,8 @@ public sealed partial class MainWindow : Window
     private CaptureOverlayWindow? _captureWindow;
     private bool _isWindowVisible = true;
     private bool _hasActivated;
+    private readonly Queue<string> _pendingErrors = new();
+    private bool _isShowingError;
     private bool _hideFromSwitchersWhenMinimized;
     private bool _wasMinimized;
     private bool _focusInputOnActivation;
@@ -64,6 +67,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         Root.DataContext = ViewModel;
         ViewModel.ChatUpdated += ViewModel_ChatUpdated;
+        ViewModel.ErrorOccurred += (_, message) => ShowError(message);
+        Root.Loaded += (_, _) => _ = ShowPendingErrorsAsync();
         _services.Localization.LanguageChanged += Localization_LanguageChanged;
         ApplyLocalization();
         Root.AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(Root_PreviewKeyDown), true);
@@ -85,6 +90,9 @@ public sealed partial class MainWindow : Window
         ConfigureWindow();
         ApplyAppearance(services.Settings.Current);
         Root.Loaded += (_, _) => ApplyAppearance(_services.Settings.Current);
+        TextResultPanel.SizeChanged += ApplyAppearanceOnFirstLayout;
+        FilePage.SizeChanged += ApplyAppearanceOnFirstLayout;
+        SettingsPage.SizeChanged += ApplyAppearanceOnFirstLayout;
         // 提前构建划词弹窗（隐藏状态），首次热键时无需再解析 XAML；失败则留到热键时重试。
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
@@ -506,7 +514,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = exception.Message;
+            ShowError(exception.Message);
             return;
         }
 
@@ -579,7 +587,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = exception.Message;
+            ShowError(exception.Message);
         }
         finally
         {
@@ -624,6 +632,59 @@ public sealed partial class MainWindow : Window
             {
                 LookupInput.SelectionStart = LookupInput.Text.Length;
             }
+        }
+    }
+
+    // 错误以弹窗提示；ContentDialog 同一时间只能打开一个，故排队依次显示。
+    private void ShowError(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message) || _isClosing)
+        {
+            return;
+        }
+
+        _pendingErrors.Enqueue(message);
+        _ = ShowPendingErrorsAsync();
+    }
+
+    private async Task ShowPendingErrorsAsync()
+    {
+        if (_isShowingError || _pendingErrors.Count == 0)
+        {
+            return;
+        }
+
+        if (!_isWindowVisible)
+        {
+            ShowAndFocus();
+        }
+
+        // 窗口内容尚未加载时没有 XamlRoot，等 Root.Loaded 再显示。
+        if (Root.XamlRoot is null)
+        {
+            return;
+        }
+
+        _isShowingError = true;
+        try
+        {
+            while (!_isClosing && _pendingErrors.TryDequeue(out var message))
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = Root.XamlRoot,
+                    RequestedTheme = Root.ActualTheme,
+                    Title = _services.Localization.Error,
+                    Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true },
+                    CloseButtonText = _services.Localization.Close,
+                    CloseButtonStyle = (Style)Application.Current.Resources["PrimaryButtonStyle"]
+                };
+                await dialog.ShowAsync();
+            }
+        }
+        finally
+        {
+            _isShowingError = false;
         }
     }
 
@@ -672,7 +733,7 @@ public sealed partial class MainWindow : Window
     {
         if (!File.Exists(ViewModel.FileOutputPath))
         {
-            ViewModel.StatusText = _services.Localization.NoOutputToOpen;
+            ShowError(_services.Localization.NoOutputToOpen);
             return;
         }
 
@@ -688,7 +749,7 @@ public sealed partial class MainWindow : Window
     {
         if (!File.Exists(ViewModel.FileOutputPath))
         {
-            ViewModel.StatusText = _services.Localization.NoOutputToOpen;
+            ShowError(_services.Localization.NoOutputToOpen);
             return;
         }
 
@@ -702,7 +763,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.CannotOpenOutput), exception.Message);
+            ShowError(_services.Localization.Format(nameof(LocalizationService.CannotOpenOutput), exception.Message));
         }
     }
 
@@ -714,7 +775,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = exception.Message;
+            ShowError(exception.Message);
         }
     }
 
@@ -729,7 +790,6 @@ public sealed partial class MainWindow : Window
             ApiTestInfoBar.Title = _services.Localization.ConnectionSuccess;
             ApiTestInfoBar.Message = _services.Localization.Format(nameof(LocalizationService.ValidResponse), result.Translation);
             ApiTestInfoBar.IsOpen = true;
-            ViewModel.StatusText = _services.Localization.ApiTestSuccessUnsaved;
         }
         catch (Exception exception)
         {
@@ -737,7 +797,6 @@ public sealed partial class MainWindow : Window
             ApiTestInfoBar.Title = _services.Localization.ConnectionFailed;
             ApiTestInfoBar.Message = exception.Message;
             ApiTestInfoBar.IsOpen = true;
-            ViewModel.StatusText = exception.Message;
         }
         finally
         {
@@ -760,7 +819,6 @@ public sealed partial class MainWindow : Window
         var apiKey = _apiKeys.TryGetValue(preset.Id, out var storedKey) ? storedKey : string.Empty;
         SetApiKeyBoxPassword(apiKey);
         ApiTestInfoBar.IsOpen = false;
-        ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.ProfileRestored), preset.DisplayName);
         if (!string.IsNullOrWhiteSpace(apiKey) && profile.Models.Count == 0)
         {
             _ = RefreshModelsAsync();
@@ -815,7 +873,6 @@ public sealed partial class MainWindow : Window
             ApiTestInfoBar.Title = _services.Localization.Format(nameof(LocalizationService.ModelsRefreshed), catalog.Models.Count);
             ApiTestInfoBar.Message = string.Empty;
             ApiTestInfoBar.IsOpen = true;
-            ViewModel.StatusText = ApiTestInfoBar.Title;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -826,7 +883,6 @@ public sealed partial class MainWindow : Window
             ApiTestInfoBar.Title = _services.Localization.ModelsRefreshFailed;
             ApiTestInfoBar.Message = exception.Message;
             ApiTestInfoBar.IsOpen = true;
-            ViewModel.StatusText = exception.Message;
         }
         finally
         {
@@ -899,7 +955,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveReasoningFailed), exception.Message);
+            ShowError(_services.Localization.Format(nameof(LocalizationService.SaveReasoningFailed), exception.Message));
         }
     }
 
@@ -918,7 +974,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message);
+            ShowError(_services.Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message));
         }
     }
 
@@ -943,11 +999,10 @@ public sealed partial class MainWindow : Window
         try
         {
             await _services.Cache.ClearAiLookupAsync();
-            ViewModel.StatusText = _services.Localization.CacheCleared;
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = exception.Message;
+            ShowError(exception.Message);
         }
     }
 
@@ -1122,7 +1177,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.ReadSettingsFailed), exception.Message);
+            ShowError(_services.Localization.Format(nameof(LocalizationService.ReadSettingsFailed), exception.Message));
         }
         finally
         {
@@ -1165,8 +1220,15 @@ public sealed partial class MainWindow : Window
 
     private void ApplyAppearance(AppSettings settings)
     {
-        AppearanceHelper.Apply(Root, settings);
+        AppearanceHelper.Apply(Root, settings, ChromeFontSizeReduction);
         _quickLookupWindow?.ApplyAppearance(settings);
+    }
+
+    // 初始折叠的面板在首次布局后才生成完整可视树，此时补一次字体设置。
+    private void ApplyAppearanceOnFirstLayout(object sender, SizeChangedEventArgs e)
+    {
+        ((FrameworkElement)sender).SizeChanged -= ApplyAppearanceOnFirstLayout;
+        ApplyAppearance(_services.Settings.Current);
     }
 
     private void ApplyLocalization()
@@ -1256,7 +1318,6 @@ public sealed partial class MainWindow : Window
             StartupRegistration.SetEnabled(launchAtStartup);
         }
 
-        ViewModel.StatusText = _services.Localization.SettingsSaved;
     }
 
     private void ValidateShortcuts(AppSettings settings)
@@ -1295,7 +1356,7 @@ public sealed partial class MainWindow : Window
         if (errors.Count > 0)
         {
             WriteHotkeyErrors(errors);
-            ViewModel.StatusText = string.Join("；", errors);
+            ShowError(string.Join("；", errors));
         }
     }
 
@@ -1531,7 +1592,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            ViewModel.StatusText = _services.Localization.Format(nameof(LocalizationService.SaveContextFailed), exception.Message);
+            ShowError(_services.Localization.Format(nameof(LocalizationService.SaveContextFailed), exception.Message));
         }
     }
 

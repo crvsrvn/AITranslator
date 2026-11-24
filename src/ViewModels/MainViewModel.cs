@@ -27,7 +27,6 @@ public partial class MainViewModel : ObservableObject
         _dictionaryText = Localization.NoDictionaryResult;
         _aiMeaningText = Localization.NoSemanticResult;
         _fileProgressText = Localization.FileNotSelected;
-        _statusText = Localization.Ready;
         RefreshLanguageOptions(services.Settings.Current.TextSourceLanguage, services.Settings.Current.TextTargetLanguage);
         Localization.LanguageChanged += Localization_LanguageChanged;
     }
@@ -105,7 +104,8 @@ public partial class MainViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(CancelFileTranslationCommand))]
     private bool _isFileTranslating;
 
-    [ObservableProperty] private string _statusText = string.Empty;
+    // 需要弹窗告知用户的错误信息。
+    public event EventHandler<string>? ErrorOccurred;
 
     [RelayCommand(CanExecute = nameof(CanSmartTranslate))]
     private async Task SmartTranslateAsync()
@@ -134,7 +134,6 @@ public partial class MainViewModel : ObservableObject
             var result = await _services.Translator.TranslateAsync(new TranslationRequest(query, SelectedSourceLanguage.Code,
                 SelectedTargetLanguage.Code));
             TranslatedText = ResultFormatter.FormatTranslation(result);
-            StatusText = result.FromCache ? Localization.LoadedFromCache : Localization.TranslationComplete;
         });
     }
 
@@ -146,7 +145,6 @@ public partial class MainViewModel : ObservableObject
         {
             _chatHistory.Clear();
             ShowChat(null);
-            StatusText = Localization.ChatCleared;
             return;
         }
 
@@ -155,19 +153,17 @@ public partial class MainViewModel : ObservableObject
         InputText = TranslationInputRouter.ChatMarker;
         ShowChat(message);
         IsBusy = true;
-        StatusText = Localization.Processing;
         try
         {
             var answer = await _services.Translator.ChatAsync(context, message);
             _chatHistory.Add(new ChatTurn(message, answer));
             ShowChat(null, focusLatestQuestion: true);
-            StatusText = Localization.Format(nameof(LocalizationService.ChatRound), _chatHistory.Count);
         }
         catch (Exception exception)
         {
             ShowChat(null);
             InputText = TranslationInputRouter.ChatMarker + message;
-            StatusText = exception.Message;
+            ReportError(exception.Message);
         }
         finally
         {
@@ -194,7 +190,6 @@ public partial class MainViewModel : ObservableObject
         var cancellation = _lookupCancellation;
 
         IsBusy = true;
-        StatusText = Localization.ReadingOfflineDictionary;
         LookupPhonetic = string.Empty;
         LookupAudioUrl = null;
         DictionaryText = Localization.ReadingOfflineDictionaryEllipsis;
@@ -226,7 +221,6 @@ public partial class MainViewModel : ObservableObject
                 ? ResultFormatter.FormatDictionary(dictionary, Localization)
                 : Localization.Format(nameof(LocalizationService.OfflineDictionaryUnavailable), dictionaryError.Message);
             ReplacePronunciations(DictionaryPronunciations, dictionary?.Pronunciations ?? []);
-            StatusText = Localization.OfflineDictionaryShown;
 
             try
             {
@@ -246,14 +240,13 @@ public partial class MainViewModel : ObservableObject
                 ? Localization.Format(nameof(LocalizationService.AiLookupUnavailable), aiError?.Message)
                 : ResultFormatter.FormatLookupAi(aiResult);
             ReplacePronunciations(AiPronunciations, PhoneticService.EnumerateLookupPronunciations(aiResult));
-            StatusText = dictionaryError is null && aiError is null ? Localization.LookupComplete : Localization.PartialResults;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            ReportError(exception.Message);
         }
         finally
         {
@@ -337,17 +330,15 @@ public partial class MainViewModel : ObservableObject
                 "general", progress, _fileTranslationCancellation.Token, translateImages: TranslateImages);
             FileOutputPath = report.OutputPath;
             FileProgressText = Localization.Format(nameof(LocalizationService.FileTranslatedUnits), report.TranslatedUnitCount);
-            StatusText = Localization.FileTranslationComplete;
         }
         catch (OperationCanceledException)
         {
             FileProgressText = Localization.Canceled;
-            StatusText = Localization.FileTranslationCanceled;
         }
         catch (Exception exception)
         {
             FileProgressText = Localization.TranslationFailed;
-            StatusText = exception.Message;
+            ReportError(exception.Message);
         }
         finally
         {
@@ -407,20 +398,21 @@ public partial class MainViewModel : ObservableObject
     private async Task RunBusyAsync(Func<Task> action)
     {
         IsBusy = true;
-        StatusText = Localization.Processing;
         try
         {
             await action();
         }
         catch (Exception exception)
         {
-            StatusText = exception.Message;
+            ReportError(exception.Message);
         }
         finally
         {
             IsBusy = false;
         }
     }
+
+    private void ReportError(string message) => ErrorOccurred?.Invoke(this, message);
 
     private static void ReplacePronunciations(ObservableCollection<PronunciationOption> target, IEnumerable<PronunciationOption> values)
     {
@@ -458,7 +450,6 @@ public partial class MainViewModel : ObservableObject
         {
             DictionaryText = Localization.NoDictionaryResult;
             AiMeaningText = Localization.NoSemanticResult;
-            StatusText = Localization.Ready;
         }
 
         if (!IsFileTranslating && string.IsNullOrWhiteSpace(SelectedFilePath))
@@ -486,7 +477,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            StatusText = Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message);
+            ReportError(Localization.Format(nameof(LocalizationService.SaveLanguageFailed), exception.Message));
         }
     }
 }
