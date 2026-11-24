@@ -98,9 +98,9 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="100*" MaxWidth="110" />
+                                <ColumnDefinition Width="100*" MaxWidth="130" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="100*" MaxWidth="110" />
+                                <ColumnDefinition Width="100*" MaxWidth="130" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="100*" MaxWidth="120" />
@@ -158,7 +158,7 @@
                                 Grid.Column="6"
                                 VerticalAlignment="Center"
                                 AutomationProperties.AutomationId="GlobalIndustryContextLabel"
-                                Foreground="{ThemeResource AppMutedTextBrush}"
+                                Style="{StaticResource CaptionStyle}"
                                 Text="{Binding Localization.IndustryContext}" />
                             <TextBox
                                 x:Name="GlobalIndustryContextBox"
@@ -191,7 +191,6 @@
                                 MinWidth="160"
                                 AcceptsReturn="True"
                                 KeyDown="LookupInput_KeyDown"
-                                Tag="TranslationContent"
                                 PlaceholderText="{Binding Localization.InputPlaceholder}"
                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                                 Text="{Binding InputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -212,11 +211,11 @@
                                 Spacing="4">
                                 <TextBlock
                                     AutomationProperties.AutomationId="TranslationReasoningLabel"
-                                    Foreground="{ThemeResource AppMutedTextBrush}"
+                                    Style="{StaticResource CaptionStyle}"
                                     Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="TranslationReasoningEffortComboBox"
-                                    Width="130"
+                                    Width="180"
                                     AutomationProperties.AutomationId="TranslationReasoningEffortComboBox"
                                     SelectionChanged="ReasoningEffortComboBox_SelectionChanged" />
                             </StackPanel>
@@ -240,7 +239,7 @@
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
                                         <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.OfflineEnglishChineseDictionary}" />
-                                        <ItemsControl x:Name="DictionaryPronunciationItems" ItemsSource="{Binding DictionaryPronunciations}" Tag="TranslationContent">
+                                        <ItemsControl x:Name="DictionaryPronunciationItems" ItemsSource="{Binding DictionaryPronunciations}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -266,7 +265,7 @@
                                         Height="1"
                                         Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer Grid.Row="2" Tag="TranslationContent">
+                                    <ScrollViewer Grid.Row="2">
                                         <TextBlock
                                             Foreground="{ThemeResource AppTextBrush}"
                                             IsTextSelectionEnabled="True"
@@ -289,7 +288,7 @@
                                     </Grid.RowDefinitions>
                                     <StackPanel Spacing="7">
                                         <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Localization.AiLookup}" />
-                                        <ItemsControl x:Name="AiPronunciationItems" ItemsSource="{Binding AiPronunciations}" Tag="TranslationContent">
+                                        <ItemsControl x:Name="AiPronunciationItems" ItemsSource="{Binding AiPronunciations}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Margin="0,0,0,3" Orientation="Horizontal" Spacing="8">
@@ -315,7 +314,7 @@
                                         Height="1"
                                         Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer Grid.Row="2" Tag="TranslationContent">
+                                    <ScrollViewer Grid.Row="2">
                                         <TextBlock
                                             Foreground="{ThemeResource AppTextBrush}"
                                             IsTextSelectionEnabled="True"
@@ -371,7 +370,7 @@
                                         Height="1"
                                         Margin="0,8"
                                         Fill="{ThemeResource AppBorderBrush}" />
-                                    <ScrollViewer x:Name="TranslationResultScrollViewer" Grid.Row="2" Tag="TranslationContent">
+                                    <ScrollViewer x:Name="TranslationResultScrollViewer" Grid.Row="2">
                                         <TextBlock
                                             x:Name="TranslationResultText"
                                             Foreground="{ThemeResource AppTextBrush}"
@@ -419,10 +418,10 @@
                                     Content="{Binding Localization.TranslateImages}"
                                     IsChecked="{Binding TranslateImages, Mode=TwoWay}"
                                     IsEnabled="{Binding CanTranslateImages}" />
-                                <TextBlock VerticalAlignment="Center" Text="{Binding Localization.ReasoningEffort}" />
+                                <TextBlock VerticalAlignment="Center" Style="{StaticResource CaptionStyle}" Text="{Binding Localization.ReasoningEffort}" />
                                 <ComboBox
                                     x:Name="FileReasoningEffortComboBox"
-                                    Width="130"
+                                    Width="180"
                                     VerticalAlignment="Center"
                                     AutomationProperties.AutomationId="FileReasoningEffortComboBox"
                                     SelectionChanged="ReasoningEffortComboBox_SelectionChanged" />
@@ -456,7 +455,7 @@
                                     <TextBlock
                                         Margin="0,3,0,0"
                                         AutomationProperties.AutomationId="SelectedFileFormatText"
-                                        Foreground="{ThemeResource AppMutedTextBrush}"
+                                        Style="{StaticResource CaptionStyle}"
                                         Text="PDF · DOCX · PPTX · XLSX" />
                                 </StackPanel>
                                 <Button
@@ -486,7 +485,7 @@
                                     Value="{Binding FileProgress}" />
                                 <TextBlock
                                     Margin="0,7,0,0"
-                                    Foreground="{ThemeResource AppMutedTextBrush}"
+                                    Style="{StaticResource CaptionStyle}"
                                     Text="{Binding FileProgressText}" />
                             </StackPanel>
                             <Button
@@ -536,7 +535,7 @@
                                     <TextBlock
                                         Margin="0,3,0,0"
                                         AutomationProperties.AutomationId="FileOutputFormatText"
-                                        Foreground="{ThemeResource AppMutedTextBrush}"
+                                        Style="{StaticResource CaptionStyle}"
                                         Text="{Binding FileOutputFormatText}" />
                                 </StackPanel>
                                 <Button

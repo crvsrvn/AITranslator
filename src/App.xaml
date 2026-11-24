@@ -137,6 +137,10 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{ThemeResource AppTextBrush}" />
             </Style>
+            <Style x:Key="CaptionStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{ThemeResource AppMutedTextBrush}" />
+            </Style>
             <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
                 <Setter Property="Background" Value="{ThemeResource AppAccentBrush}" />
                 <Setter Property="Foreground" Value="{ThemeResource AppAccentForegroundBrush}" />

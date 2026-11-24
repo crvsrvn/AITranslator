@@ -7,11 +7,9 @@ namespace AITranslator.Helpers;
 
 public static class AppearanceHelper
 {
-    // 标记翻译内容（输入、译文、释义）的 Tag，其子树始终使用用户设置的字号。
-    private const string TranslationContentTag = "TranslationContent";
+    private const double MinimumTextSize = 12;
 
-    /// <param name="chromeSizeReduction">翻译内容以外的界面文字比用户设置的字号小多少。</param>
-    public static void Apply(FrameworkElement root, AppSettings settings, double chromeSizeReduction = 0)
+    public static void Apply(FrameworkElement root, AppSettings settings)
     {
         root.RequestedTheme = settings.Theme switch
         {
@@ -20,20 +18,15 @@ public static class AppearanceHelper
             _ => ElementTheme.Default
         };
 
-        var bodySize = Math.Clamp(settings.FontSize, 12, 22);
+        var bodySize = Math.Clamp(settings.FontSize, MinimumTextSize, 22);
         var fontFamily = new FontFamily(string.IsNullOrWhiteSpace(settings.FontFamily)
             ? "Microsoft YaHei UI"
             : settings.FontFamily);
-        ApplyTypography(root, fontFamily, bodySize - chromeSizeReduction, bodySize);
+        ApplyTypography(root, fontFamily, bodySize);
     }
 
-    private static void ApplyTypography(DependencyObject element, FontFamily fontFamily, double bodySize, double contentSize)
+    private static void ApplyTypography(DependencyObject element, FontFamily fontFamily, double bodySize)
     {
-        if (element is FrameworkElement { Tag: TranslationContentTag })
-        {
-            bodySize = contentSize;
-        }
-
         switch (element)
         {
             case TextBlock textBlock:
@@ -53,7 +46,7 @@ public static class AppearanceHelper
 
         for (var index = 0; index < VisualTreeHelper.GetChildrenCount(element); index++)
         {
-            ApplyTypography(VisualTreeHelper.GetChild(element, index), fontFamily, bodySize, contentSize);
+            ApplyTypography(VisualTreeHelper.GetChild(element, index), fontFamily, bodySize);
         }
     }
 
@@ -73,12 +66,17 @@ public static class AppearanceHelper
     {
         if (UsesStyle(textBlock, "PageTitleStyle"))
         {
-            return bodySize + 9;
+            return bodySize + 6;
         }
 
         if (UsesStyle(textBlock, "SectionTitleStyle"))
         {
-            return bodySize + 1;
+            return bodySize;
+        }
+
+        if (UsesStyle(textBlock, "CaptionStyle"))
+        {
+            return Math.Max(MinimumTextSize, bodySize - 2);
         }
 
         return string.Equals(textBlock.Name, "QueryText", StringComparison.Ordinal) ? bodySize + 2 : bodySize;

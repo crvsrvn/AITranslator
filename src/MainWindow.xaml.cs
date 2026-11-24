@@ -24,7 +24,6 @@ public sealed partial class MainWindow : Window
     private const nuint MainWindowSubclassId = 2;
     private const int DefaultWindowWidth = 860;
     private const int DefaultWindowHeight = 560;
-    private const double ChromeFontSizeReduction = 3;
     private const int MinimumRestoredVisibleWidth = 160;
     private const int MinimumRestoredVisibleHeight = 48;
     private readonly AppServices _services;
@@ -1220,7 +1219,7 @@ public sealed partial class MainWindow : Window
 
     private void ApplyAppearance(AppSettings settings)
     {
-        AppearanceHelper.Apply(Root, settings, ChromeFontSizeReduction);
+        AppearanceHelper.Apply(Root, settings);
         _quickLookupWindow?.ApplyAppearance(settings);
     }
 
