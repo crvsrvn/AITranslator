@@ -114,7 +114,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
     {
         var context = settings.IndustryContext?.Trim() ?? string.Empty;
         var content = await SendPromptAsync(TranslationSystemPrompt, BuildTranslationPrompt(request, context, settings.AppLanguage), settings, apiKey,
-            cancellationToken);
+            cancellationToken, jsonMode: true);
         return ParseTranslationContent(content, settings.ApiPreset, context);
     }
 
@@ -181,16 +181,16 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
                       Query:
                       {text}
                       """;
-        var content = await SendPromptAsync(LookupSystemPrompt, prompt, settings, apiKey, cancellationToken);
+        var content = await SendPromptAsync(LookupSystemPrompt, prompt, settings, apiKey, cancellationToken, jsonMode: true);
         return ParseLookupContent(content, text, targetLanguage, settings.ApiPreset, context);
     }
 
     private Task<string> SendPromptAsync(string systemPrompt, string userPrompt, AppSettings settings, string apiKey,
-        CancellationToken cancellationToken, int maximumOutputTokens = 4_096) =>
-        SendMessagesAsync(systemPrompt, [ApiMessage("user", userPrompt)], settings, apiKey, cancellationToken, maximumOutputTokens);
+        CancellationToken cancellationToken, int maximumOutputTokens = 4_096, bool jsonMode = false) =>
+        SendMessagesAsync(systemPrompt, [ApiMessage("user", userPrompt)], settings, apiKey, cancellationToken, maximumOutputTokens, jsonMode);
 
     private async Task<string> SendMessagesAsync(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings, string apiKey,
-        CancellationToken cancellationToken, int maximumOutputTokens = 4_096)
+        CancellationToken cancellationToken, int maximumOutputTokens = 4_096, bool jsonMode = false)
     {
         if (string.IsNullOrWhiteSpace(settings.TranslationModel))
         {
@@ -203,7 +203,7 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         {
             Content = protocol == ApiProtocolNames.AnthropicMessages
                 ? JsonContent.Create(CreateAnthropicBody(systemPrompt, messages, settings, maximumOutputTokens))
-                : JsonContent.Create(CreateOpenAiBody(systemPrompt, messages, settings))
+                : JsonContent.Create(CreateOpenAiBody(systemPrompt, messages, settings, jsonMode))
         };
 
         AddAuthenticationHeader(message, settings, apiKey);
@@ -240,7 +240,8 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
 
     private static object ApiMessage(string role, string content) => new { role, content };
 
-    private static Dictionary<string, object?> CreateOpenAiBody(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings)
+    private static Dictionary<string, object?> CreateOpenAiBody(string systemPrompt, IReadOnlyList<object> messages, AppSettings settings,
+        bool jsonMode)
     {
         var body = new Dictionary<string, object?>
         {
@@ -251,6 +252,11 @@ public sealed class OpenAiCompatibleTranslationProvider : ITranslationProvider
         var effort = settings.ActiveReasoningEffort.Trim().ToLowerInvariant();
         if (string.Equals(settings.ApiPreset, "deepseek", StringComparison.OrdinalIgnoreCase))
         {
+            if (jsonMode)
+            {
+                body["response_format"] = new { type = "json_object" };
+            }
+
             if (effort == "off")
             {
                 body["thinking"] = new { type = "disabled" };
